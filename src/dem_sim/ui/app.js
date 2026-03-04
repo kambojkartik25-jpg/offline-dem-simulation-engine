@@ -364,6 +364,9 @@ function renderCandidateTable(payload) {
       <td>${idx + 1}</td>
       <td>${Number(c.total_discharged_mass_kg).toFixed(3)}</td>
       <td>${(c.recommended_discharge || []).map((r) => `${r.silo_id}:${Number(r.discharge_fraction).toFixed(3)}`).join(" | ")}</td>
+      <td>${Object.entries(c.blended_params || {})
+        .map(([k, v]) => `${k}:${Number(v).toFixed(3)}`)
+        .join(" | ")}</td>
       <td><button class="btn btn-alt candidate-discharge-btn" data-candidate-index="${idx}">Discharge</button></td>
     </tr>
   `
@@ -376,6 +379,7 @@ function renderCandidateTable(payload) {
           <th>Rank</th>
           <th>Discharged (kg)</th>
           <th>Recommended Fractions</th>
+          <th>Blended Params</th>
           <th>Action</th>
         </tr>
       </thead>
