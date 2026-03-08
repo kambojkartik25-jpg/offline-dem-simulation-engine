@@ -277,6 +277,181 @@ class ProcessApplyDischargeRequest(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class GenerateRandomDataRequest(BaseModel):
+    seed: int = 42
+    silos_count: int = 3
+    lots_count: int = 100
+    lot_size_kg: float = 2000.0
+
+
+class GenerateScheduleRequest(BaseModel):
+    schedule_id: str | None = None
+    name: str = "MVP Brew Schedule"
+    brews_count: int = 5
+    seed: int = 42
+    target_params: dict[str, float] = Field(default_factory=dict)
+
+
+class ScheduleOptimizeRequest(BaseModel):
+    iterations: int = 120
+    seed: int = 42
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+class ScheduleApplyRequest(BaseModel):
+    candidate_index: int = 0
+    config: dict[str, Any] = Field(default_factory=dict)
+
+
+DEFAULT_SCHEDULE_TARGET_PARAMS = {
+    "moisture_pct": 4.35,
+    "fine_extract_db_pct": 82.40,
+    "wort_pH": 5.89,
+    "diastatic_power_WK": 332.0,
+    "total_protein_pct": 10.60,
+    "wort_colour_EBC": 4.40,
+}
+
+
+def _generate_random_payload(
+    *, seed: int, silos_count: int, lots_count: int, lot_size_kg: float
+) -> dict[str, Any]:
+    rng = random.Random(seed)
+    silos_count = max(1, int(silos_count))
+    lots_count = max(1, int(lots_count))
+    lot_size_kg = max(1.0, float(lot_size_kg))
+    suppliers = ["BBM", "COFCO", "Malteurop"]
+
+    silos: list[dict[str, Any]] = []
+    for i in range(silos_count):
+        silos.append(
+            {
+                "silo_id": f"S{i+1}",
+                "capacity_kg": float(8000.0),
+                "body_diameter_m": round(rng.uniform(2.8, 3.4), 3),
+                "outlet_diameter_m": round(rng.uniform(0.18, 0.23), 3),
+                "initial_mass_kg": 0.0,
+            }
+        )
+
+    incoming_queue: list[dict[str, Any]] = []
+    for i in range(lots_count):
+        sup = suppliers[i % len(suppliers)]
+        incoming_queue.append(
+            {
+                "lot_id": f"LOT{i+1:03d}",
+                "supplier": sup,
+                "mass_kg": float(lot_size_kg),
+            }
+        )
+
+    supplier_specs = {
+        "BBM": {
+            "supplier": "BBM",
+            "moisture_pct": 4.20,
+            "fine_extract_db_pct": 82.10,
+            "wort_pH": 5.86,
+            "diastatic_power_WK": 320.0,
+            "total_protein_pct": 10.40,
+            "wort_colour_EBC": 4.30,
+        },
+        "COFCO": {
+            "supplier": "COFCO",
+            "moisture_pct": 4.35,
+            "fine_extract_db_pct": 82.40,
+            "wort_pH": 5.89,
+            "diastatic_power_WK": 332.0,
+            "total_protein_pct": 10.60,
+            "wort_colour_EBC": 4.40,
+        },
+        "Malteurop": {
+            "supplier": "Malteurop",
+            "moisture_pct": 4.50,
+            "fine_extract_db_pct": 82.70,
+            "wort_pH": 5.92,
+            "diastatic_power_WK": 344.0,
+            "total_protein_pct": 10.80,
+            "wort_colour_EBC": 4.50,
+        },
+    }
+    suppliers_rows = [supplier_specs[s] for s in suppliers]
+
+    return {
+        "silos": silos,
+        "layers": [],
+        "suppliers": suppliers_rows,
+        "incoming_queue": incoming_queue,
+        "discharge": [{"silo_id": s["silo_id"], "discharge_mass_kg": None, "discharge_fraction": 0.5} for s in silos],
+        "config": {
+            "rho_bulk_kg_m3": 610.0,
+            "grain_diameter_m": 0.004,
+            "beverloo_c": 0.58,
+            "beverloo_k": 1.4,
+            "gravity_m_s2": 9.81,
+            "sigma_m": 0.12,
+            "steps": 2000,
+            "auto_adjust": True,
+        },
+    }
+
+
+def _replace_db_seed_data(payload: dict[str, Any]) -> None:
+    silos = payload.get("silos", [])
+    suppliers = payload.get("suppliers", [])
+    queue = payload.get("incoming_queue", [])
+    with get_conn() as conn:
+        with conn.transaction():
+            conn.execute("DELETE FROM layers")
+            conn.execute("DELETE FROM incoming_queue")
+            conn.execute("DELETE FROM suppliers")
+            conn.execute("DELETE FROM silos")
+
+            for s in silos:
+                conn.execute(
+                    """
+                    INSERT INTO silos (silo_id, capacity_kg, body_diameter_m, outlet_diameter_m, initial_mass_kg)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (
+                        str(s.get("silo_id", "")),
+                        float(s.get("capacity_kg", 0.0) or 0.0),
+                        float(s.get("body_diameter_m", 0.0) or 0.0),
+                        float(s.get("outlet_diameter_m", 0.0) or 0.0),
+                        float(s.get("initial_mass_kg", 0.0) or 0.0),
+                    ),
+                )
+            for sp in suppliers:
+                conn.execute(
+                    """
+                    INSERT INTO suppliers (name, moisture_pct, fine_extract_db_pct, wort_pH, diastatic_power_WK, total_protein_pct, wort_colour_EBC)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        str(sp.get("supplier", "")),
+                        float(sp.get("moisture_pct", 0.0) or 0.0),
+                        float(sp.get("fine_extract_db_pct", 0.0) or 0.0),
+                        float(sp.get("wort_pH", 0.0) or 0.0),
+                        float(sp.get("diastatic_power_WK", 0.0) or 0.0),
+                        float(sp.get("total_protein_pct", 0.0) or 0.0),
+                        float(sp.get("wort_colour_EBC", 0.0) or 0.0),
+                    ),
+                )
+            for q in queue:
+                mass = float(q.get("mass_kg", 0.0) or 0.0)
+                conn.execute(
+                    """
+                    INSERT INTO incoming_queue (lot_id, supplier, mass_kg, remaining_mass_kg, is_fully_consumed)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """,
+                    (
+                        str(q.get("lot_id", "")),
+                        str(q.get("supplier", "")),
+                        mass,
+                        mass,
+                        False,
+                    ),
+                )
+
 def _records_json_safe(df: pd.DataFrame) -> list[dict[str, Any]]:
     records = df.to_dict(orient="records")
     out: list[dict[str, Any]] = []
@@ -706,6 +881,37 @@ def create_app() -> FastAPI:
     def sample() -> dict[str, Any]:
         return _sample_payload()
 
+    @app.post("/api/data/generate-random")
+    def generate_random_data(req: GenerateRandomDataRequest) -> dict[str, Any]:
+        ensure_db_schema()
+        payload = _generate_random_payload(
+            seed=req.seed,
+            silos_count=req.silos_count,
+            lots_count=req.lots_count,
+            lot_size_kg=req.lot_size_kg,
+        )
+        _replace_db_seed_data(payload)
+        reset_state()
+        set_state(
+            silos=payload.get("silos", []),
+            layers=payload.get("layers", []),
+            suppliers=payload.get("suppliers", []),
+            incoming_queue=payload.get("incoming_queue", []),
+            action="generate_random_data",
+            meta={"seed": req.seed},
+        )
+        summary = summarize_state()
+        sim_event_id = _write_sim_event(
+            event_type="generate_random_data",
+            action="generate_random_data",
+            state_after=get_state(),
+            incoming_queue_count=int(summary.get("incoming_queue", {}).get("count", 0)),
+            incoming_queue_mass_kg=float(summary.get("incoming_queue", {}).get("total_mass_kg", 0.0)),
+            meta={"seed": req.seed, "silos_count": req.silos_count, "lots_count": req.lots_count},
+        )
+        _sync_layers_to_db(get_state(), event_type="generate_random_data", sim_event_id=sim_event_id)
+        return {"status": "ok", "payload": payload, "summary": summary, "sim_event_id": sim_event_id}
+
     @app.get("/api/state")
     def state() -> dict[str, Any]:
         _ensure_state_initialized()
@@ -910,6 +1116,150 @@ def create_app() -> FastAPI:
         _persist_result("apply_discharge_predicted", predicted, payload={"discharge_by_silo": discharge_by_silo})
         # Intentionally do not call _persist_state_bundle here; use sim_events/discharge tables.
         return out
+
+    @app.post("/api/schedules/generate")
+    def generate_schedule(req: GenerateScheduleRequest) -> dict[str, Any]:
+        ensure_db_schema()
+        count = max(1, min(50, int(req.brews_count)))
+        schedule_id = (req.schedule_id or f"sched_{req.seed}_{count}").strip()
+        if not schedule_id:
+            raise HTTPException(status_code=422, detail="schedule_id cannot be empty")
+        target_fixed = dict(DEFAULT_SCHEDULE_TARGET_PARAMS)
+        for k, v in (req.target_params or {}).items():
+            target_fixed[str(k)] = float(v)
+        items: list[dict[str, Any]] = []
+        with get_conn() as conn:
+            with conn.transaction():
+                conn.execute(
+                    """
+                    INSERT INTO brew_schedules (schedule_id, name, status)
+                    VALUES (%s, %s, 'active')
+                    ON CONFLICT (schedule_id)
+                    DO UPDATE SET name = EXCLUDED.name, status = 'active', updated_at = NOW()
+                    """,
+                    (schedule_id, req.name),
+                )
+                conn.execute("DELETE FROM brew_schedule_items WHERE schedule_id = %s", (schedule_id,))
+                for i in range(count):
+                    brew_id = f"BREW{i+1:03d}"
+                    conn.execute(
+                        """
+                        INSERT INTO brew_schedule_items (
+                            schedule_id, brew_id, brew_index, target_params, target_discharge_kg, status
+                        )
+                        VALUES (%s, %s, %s, %s::jsonb, %s, 'pending')
+                        """,
+                        (schedule_id, brew_id, i + 1, json.dumps(target_fixed), FIXED_DISCHARGE_TARGET_KG),
+                    )
+                    items.append(
+                        {
+                            "brew_id": brew_id,
+                            "brew_index": i + 1,
+                            "target_params": target_fixed,
+                            "status": "pending",
+                        }
+                    )
+        return {"schedule_id": schedule_id, "name": req.name, "items": items}
+
+    @app.get("/api/schedules/{schedule_id}")
+    def get_schedule(schedule_id: str) -> dict[str, Any]:
+        ensure_db_schema()
+        head = fetchall(
+            "SELECT schedule_id, name, status, created_at, updated_at FROM brew_schedules WHERE schedule_id = %s",
+            (schedule_id,),
+        )
+        if not head:
+            raise HTTPException(status_code=404, detail="schedule not found")
+        rows = fetchall(
+            """
+            SELECT id, brew_id, brew_index, target_params, target_discharge_kg, status, selected_candidate_index, applied_event_id
+            FROM brew_schedule_items
+            WHERE schedule_id = %s
+            ORDER BY brew_index
+            """,
+            (schedule_id,),
+        )
+        return {"schedule": head[0], "items": rows}
+
+    @app.post("/api/schedules/{schedule_id}/items/{brew_id}/optimize")
+    def optimize_schedule_item(schedule_id: str, brew_id: str, req: ScheduleOptimizeRequest) -> dict[str, Any]:
+        ensure_db_schema()
+        rows = fetchall(
+            """
+            SELECT id, target_params
+            FROM brew_schedule_items
+            WHERE schedule_id = %s AND brew_id = %s
+            """,
+            (schedule_id, brew_id),
+        )
+        if not rows:
+            raise HTTPException(status_code=404, detail="schedule item not found")
+        target_params = rows[0].get("target_params", {}) or {}
+        _ensure_state_initialized()
+        state = get_state()
+        opt_req = OptimizeRequest(
+            silos=state.get("silos", []),
+            layers=state.get("layers", []),
+            suppliers=state.get("suppliers", []),
+            discharge=[],
+            config=req.config,
+            target_params=target_params,
+            iterations=req.iterations,
+            seed=req.seed,
+        )
+        out = optimize(opt_req)
+        execute(
+            """
+            UPDATE brew_schedule_items
+            SET status = 'optimized', optimize_result = %s::jsonb, updated_at = NOW()
+            WHERE schedule_id = %s AND brew_id = %s
+            """,
+            (json.dumps(out), schedule_id, brew_id),
+        )
+        return out
+
+    @app.post("/api/schedules/{schedule_id}/items/{brew_id}/apply")
+    def apply_schedule_item(schedule_id: str, brew_id: str, req: ScheduleApplyRequest) -> dict[str, Any]:
+        ensure_db_schema()
+        rows = fetchall(
+            """
+            SELECT optimize_result
+            FROM brew_schedule_items
+            WHERE schedule_id = %s AND brew_id = %s
+            """,
+            (schedule_id, brew_id),
+        )
+        if not rows:
+            raise HTTPException(status_code=404, detail="schedule item not found")
+        opt_result = rows[0].get("optimize_result", {}) or {}
+        top_candidates = opt_result.get("top_candidates", []) or []
+        idx = int(req.candidate_index)
+        if idx < 0 or idx >= len(top_candidates):
+            raise HTTPException(status_code=422, detail="invalid candidate_index for schedule item")
+        discharge_plan = top_candidates[idx].get("recommended_discharge", []) or []
+        if not discharge_plan:
+            raise HTTPException(status_code=422, detail="selected candidate has empty recommended_discharge")
+
+        before_id_rows = fetchall("SELECT COALESCE(MAX(id), 0) AS id FROM sim_events")
+        before_id = int(before_id_rows[0].get("id", 0)) if before_id_rows else 0
+        out = process_apply_discharge(
+            ProcessApplyDischargeRequest(discharge=discharge_plan, config=req.config)
+        )
+        after_id_rows = fetchall("SELECT COALESCE(MAX(id), 0) AS id FROM sim_events")
+        after_id = int(after_id_rows[0].get("id", 0)) if after_id_rows else before_id
+        applied_event_id = after_id if after_id > before_id else None
+        execute(
+            """
+            UPDATE brew_schedule_items
+            SET status = 'applied',
+                selected_candidate_index = %s,
+                applied_event_id = %s,
+                updated_at = NOW()
+            WHERE schedule_id = %s AND brew_id = %s
+            """,
+            (idx, applied_event_id, schedule_id, brew_id),
+        )
+        return {"applied": True, "candidate_index": idx, "applied_event_id": applied_event_id, "result": out}
 
     @app.post("/api/validate")
     def validate(req: RunRequest) -> dict[str, Any]:

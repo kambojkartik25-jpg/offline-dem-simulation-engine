@@ -124,6 +124,31 @@ CREATE TABLE IF NOT EXISTS sim_events (
     objective_score DOUBLE PRECISION,
     meta JSONB NOT NULL DEFAULT '{}'::jsonb
 );
+
+CREATE TABLE IF NOT EXISTS brew_schedules (
+    schedule_id TEXT PRIMARY KEY,
+    name TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS brew_schedule_items (
+    id BIGSERIAL PRIMARY KEY,
+    schedule_id TEXT NOT NULL REFERENCES brew_schedules(schedule_id) ON DELETE CASCADE,
+    brew_id TEXT NOT NULL,
+    brew_index INTEGER NOT NULL,
+    target_params JSONB NOT NULL DEFAULT '{}'::jsonb,
+    target_discharge_kg DOUBLE PRECISION NOT NULL DEFAULT 12000.0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    optimize_result JSONB NOT NULL DEFAULT '{}'::jsonb,
+    selected_candidate_index INTEGER,
+    applied_event_id BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(schedule_id, brew_id),
+    UNIQUE(schedule_id, brew_index)
+);
 """
 
 
@@ -171,3 +196,5 @@ def ensure_schema() -> None:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_layers_sim_event_id ON layers(sim_event_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_discharge_results_sim_event_id ON discharge_results(sim_event_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_results_optimize_sim_event_id ON results_optimize(sim_event_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_brew_schedule_items_schedule_id ON brew_schedule_items(schedule_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_brew_schedule_items_status ON brew_schedule_items(status)")
