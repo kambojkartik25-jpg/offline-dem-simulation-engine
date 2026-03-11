@@ -770,6 +770,7 @@ DISCHARGE_FRACTION_MIN = 0.2
 DISCHARGE_FRACTION_MAX = 0.8
 FIXED_DISCHARGE_TARGET_KG = 12000.0
 FIXED_DISCHARGE_TOL_KG = 1e-3
+OPT_LAYER_PRUNE_EPS_KG = 1e-6
 
 
 def _score_blend(
@@ -822,6 +823,22 @@ def _available_mass_by_silo(layers_df: pd.DataFrame) -> dict[str, float]:
         .astype(float)
     )
     return {str(k): float(v) for k, v in grouped.to_dict().items()}
+
+
+def _prune_layers_for_optimization(layers_df: pd.DataFrame) -> pd.DataFrame:
+    """Drop zero/near-zero mass layers only for optimization evaluation.
+
+    This does not mutate runtime state or persisted history; it only reduces
+    candidate-evaluation cost for /api/optimize.
+    """
+    if layers_df.empty:
+        return layers_df
+    out = layers_df.copy()
+    if "segment_mass_kg" not in out.columns:
+        return out
+    masses = pd.to_numeric(out["segment_mass_kg"], errors="coerce").fillna(0.0)
+    out = out.loc[masses > OPT_LAYER_PRUNE_EPS_KG].copy()
+    return out
 
 
 def _normalize_discharge_to_target(
@@ -1365,7 +1382,7 @@ def create_app() -> FastAPI:
         started_at = time.perf_counter()
         inputs = {
             "silos": pd.DataFrame(req.silos),
-            "layers": pd.DataFrame(req.layers),
+            "layers": _prune_layers_for_optimization(pd.DataFrame(req.layers)),
             "suppliers": pd.DataFrame(req.suppliers),
             "discharge": pd.DataFrame(req.discharge),
         }
