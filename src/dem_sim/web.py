@@ -898,7 +898,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     ui_dir = Path(__file__).resolve().parent / "ui"
-    app.mount("/ui", StaticFiles(directory=ui_dir), name="ui")
+    app.mount("/ui", StaticFiles(directory=ui_dir, html=True), name="ui")
 
     @app.get("/health")
     def health() -> dict[str, str]:

@@ -162,6 +162,15 @@
             <div class="top-gap">
               <button id="schedGenerateRandomBtn" class="btn btn-strong">Generate Random</button>
             </div>
+            <div id="schedRandomStatus" class="run-status top-gap">Generate random data to see inventory summary.</div>
+            <div class="panel-title top-gap">Silos</div>
+            <div id="schedGenSilosWrap"></div>
+            <div class="panel-title top-gap">Suppliers</div>
+            <div id="schedGenSuppliersWrap"></div>
+            <div class="panel-title top-gap">Loaded Lots</div>
+            <div id="schedGenLoadedLotsWrap"></div>
+            <div class="panel-title top-gap">Incoming Queue</div>
+            <div id="schedGenIncomingLotsWrap"></div>
           </article>
 
           <article class="step-card" aria-labelledby="scheduleBuildTitle">
@@ -181,27 +190,39 @@
             <div class="top-gap">
               <button id="schedGenerateScheduleBtn" class="btn">Generate Schedule</button>
             </div>
+            <div id="schedScheduleStatus" class="run-status top-gap">Generate a schedule to see brew plan.</div>
+            <div class="panel-title top-gap">Brew Plan</div>
+            <div id="schedGenBrewsWrap"></div>
           </article>
         </section>
 
         <section class="analysis-col">
-          <article class="step-card" aria-labelledby="scheduleRunTitle">
+          <article class="step-card" id="schedStepRun" aria-labelledby="scheduleRunTitle">
             <div class="step-head">
               <div class="step-index">3</div>
               <div>
                 <div class="step-title" id="scheduleRunTitle">Run Simulation</div>
-                <div class="step-status">Fill Silos</div>
+                <div class="step-status" id="schedSimStatus" aria-live="polite">Ready</div>
               </div>
             </div>
             <button id="schedRunSimulationBtn" class="btn btn-strong">Run Simulation</button>
+            <div class="panel-title top-gap">Run Summary</div>
+            <div id="schedRunStatus" class="run-status" role="status" aria-live="polite">Simulation not started.</div>
+            <div id="schedSummaryCards" class="cards"></div>
+            <div class="panel-title top-gap">Remaining Mass Focus</div>
+            <div id="schedRemainingFocusWrap" class="viz-grid"></div>
+            <div class="panel-title top-gap">Discharge Contribution by Silo</div>
+            <div id="schedContributionWrap" class="bar-stack"></div>
+            <div class="panel-title top-gap">Per-Silo</div>
+            <div id="schedSiloTableWrap"></div>
           </article>
 
-          <article class="step-card" aria-labelledby="scheduleOptimizeTitle">
+          <article class="step-card" id="schedStepOptimize" aria-labelledby="scheduleOptimizeTitle">
             <div class="step-head">
               <div class="step-index">4</div>
               <div>
-                <div class="step-title" id="scheduleOptimizeTitle">Optimize Schedule</div>
-                <div class="step-status">Per Brew</div>
+                <div class="step-title" id="scheduleOptimizeTitle">Optimize &amp; Discharge</div>
+                <div class="step-status" id="schedOptStatus" aria-live="polite">Per Brew</div>
               </div>
             </div>
             <div class="target-grid">
@@ -215,14 +236,27 @@
             <div class="top-gap">
               <button id="schedOptimizeBtn" class="btn btn-opt">Optimize Schedule</button>
             </div>
-            <div class="panel-title top-gap">Schedule Response</div>
-            <pre id="scheduleOut" role="region" aria-label="Schedule API Output"></pre>
+            <div class="panel-title top-gap">Top Candidates</div>
+            <div id="schedCandidateControls" class="candidate-controls">
+              <label>Sort by
+                <select id="schedCandidateSort">
+                  <option value="discharged" selected>Discharged Mass</option>
+                </select>
+              </label>
+            </div>
+            <div id="schedCandidateTableWrap"></div>
+            <div class="panel-title top-gap">Brew Execution Details</div>
+            <div id="scheduleBrewDetailsWrap"></div>
+            <details class="advanced top-gap">
+              <summary>Raw Optimization Output</summary>
+              <pre id="schedOptimizationOut" role="region" aria-label="Schedule Optimization Output"></pre>
+            </details>
           </article>
         </section>
       </div>
     </section>
   </div>
 
-  <script src="/ui/app.js?v=9"></script>
+  <script src="/ui/app.js?v=10"></script>
 </body>
 </html>
