@@ -1,152 +1,432 @@
 # Offline DEM Simulation Engine
 
-Production-style application for estimating discharged blend composition from layered malt lots in silos.
+Production-grade simulator for estimating discharged malt blend composition from layered silo discharge, built for **brewery operations**. Uses the Beverloo mass-flow equation coupled with a Gaussian mixing kernel (and three optional brewery-specific physics extensions) to predict the lot-level blend at the discharge outlet.
 
-## Features
-- Beverloo mass-flow model for each silo.
-- Layer-to-height conversion for lot segments.
-- Gaussian mixing sampler over moving discharge front.
-- Multi-silo discharge simulation and total blend parameter calculation.
-- CLI workflow for generating sample data, validating inputs, running simulation, and exporting artifacts.
+---
 
-## Project structure
-- `src/dem_sim/model.py`: physics + blending engine.
-- `src/dem_sim/service.py`: run orchestration and config object.
-- `src/dem_sim/io.py`: CSV input loading and output directory helpers.
-- `src/dem_sim/reporting.py`: summaries and output artifact writers.
-- `src/dem_sim/sample_data.py`: built-in sample dataset generator.
-- `src/dem_sim/synthetic.py`: synthetic dataset generation within malt COA ranges.
-- `src/dem_sim/cli.py`: command-line interface.
-- `src/dem_sim/web.py`: FastAPI app and API endpoints.
-- `src/dem_sim/ui/index.html`: web app shell.
-- `src/dem_sim/ui/styles.css`: responsive UI styling.
-- `src/dem_sim/ui/app.js`: frontend behavior and API integration.
-- `scripts/run_example.py`: script entrypoint using in-code example dataframes.
-- `tests/test_smoke.py`: smoke test over sample-data flow.
-- `tests/test_web_api.py`: web/API smoke coverage.
-- `Silo_discharge.ipynb`: original R&D notebook.
+## Table of Contents
 
-## Install
+- [Overview](#overview)
+- [Physics Model](#physics-model)
+  - [Beverloo Mass-Flow Equation](#beverloo-mass-flow-equation)
+  - [Gaussian Mixing Kernel](#gaussian-mixing-kernel)
+  - [Brewery Physics Extensions](#brewery-physics-extensions)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Installation](#installation)
+- [CLI Usage](#cli-usage)
+- [Web UI / API](#web-ui--api)
+- [PostgreSQL Persistence](#postgresql-persistence)
+- [Lifecycle DB Testing](#lifecycle-db-testing)
+- [Running Tests](#running-tests)
+- [Input Files](#input-files)
+- [Output Artifacts](#output-artifacts)
+- [Docker](#docker)
+
+---
+
+## Overview
+
+Brewery malt silos are filled in layers (each layer = one supplier lot). During discharge, grains from different layers mix as they flow through the hopper. This engine simulates that process to answer:
+
+> *"Given the current silo state and a target discharge volume, what lot proportions and blended COA parameters will come out?"*
+
+It supports the full silo lifecycle — charge → discharge → recharge → discharge — and validates seven physical invariants at every step.
+
+---
+
+## Physics Model
+
+### Beverloo Mass-Flow Equation
+
+The instantaneous mass-flow rate from each silo outlet is:
+
+```
+Q = C · ρ · √g · (D - k·d)^2.5
+```
+
+| Symbol | Meaning | Typical value |
+|--------|---------|--------------|
+| `C` | discharge coefficient | 0.58 |
+| `ρ` | bulk density (kg/m³) | 610 (malt) |
+| `g` | gravity (m/s²) | 9.81 |
+| `D` | outlet diameter (m) | silo-specific |
+| `k` | dead-zone correction | 1.4 |
+| `d` | grain diameter (m) | 0.004 (malt) |
+
+The effective diameter `D - k·d` corrects for the grain dead-zone at the outlet edge.
+
+### Gaussian Mixing Kernel
+
+Discharge is simulated in time steps. At each step the discharge front height `z_front` descends. The probability that a given layer contributes to the current timestep's outflow follows a Normal CDF centred on `z_front`:
+
+```
+P(layer i) ∝ Φ((z1_i - z_front) / σ) - Φ((z0_i - z_front) / σ)
+```
+
+`σ` (sigma_m) controls the mixing width — larger values mean more inter-layer blending.
+
+### Brewery Physics Extensions
+
+Three optional improvements tuned for **malt grain** (3–6 mm, 550–650 kg/m³, moisture 3–12%). All default to `0.0` (off) and are fully backward-compatible.
+
+#### 1. Moisture-Dependent Cohesion (`moisture_beta`)
+
+Wet malt is more cohesive and flows slower. The effective mass-flow rate is reduced per-layer:
+
+```
+dm_eff = dm × exp(−β × moisture_pct)
+```
+
+- `moisture_beta = 0.0` → no correction (default)
+- Recommended production value: `0.05`
+- Per-layer moisture is sourced from `suppliers.csv`
+
+#### 2. Sigma Height-Scaling (`sigma_alpha`)
+
+As the silo empties, the grain column shortens and the mixing zone narrows:
+
+```
+σ(t) = σ₀ × (h_remaining / h_initial) ^ α
+```
+
+- `sigma_alpha = 0.0` → constant σ (default)
+- Recommended production value: `0.4`
+- Higher `α` → mixing concentrates earlier, spreads less as silo empties
+
+#### 3. Asymmetric Mixing Kernel (`skew_alpha`)
+
+Real hopper geometry creates convergence zones that bias discharge toward sub-front layers. Implemented as an **exponential tilt** applied after the Normal CDF:
+
+```
+weight_i = exp(α × (z_center_i − z_front) / σ)
+```
+
+- `skew_alpha = 0.0` → symmetric Gaussian (default)
+- `skew_alpha = −2.0` → biases toward layers below the front (hopper convergence zone)
+- Recommended production value: `−2.0`
+- Always strictly positive (unlike skew-normal CDF surrogates which can go non-monotone)
+
+**Combined recommended settings for brewery malt:**
+
+```bash
+dem-sim run --in data/sample --out outputs/latest \
+  --moisture-beta 0.05 \
+  --sigma-alpha 0.4 \
+  --skew-alpha -2.0
+```
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  CLI (dem_sim.cli)          Web API (dem_sim.web)        │
+│       │                           │                      │
+│       └──────────┬────────────────┘                      │
+│                  ▼                                       │
+│         Service Layer (dem_sim.service)                  │
+│              RunConfig dataclass                         │
+│                  │                                       │
+│                  ▼                                       │
+│         Physics Engine (dem_sim.model)                   │
+│    Beverloo + Gaussian kernel + 3 extensions             │
+│                  │                                       │
+│         ┌────────┴────────┐                              │
+│         ▼                 ▼                              │
+│    State (dem_sim.state)  Storage (dem_sim.storage)      │
+│    in-memory silo state   PostgreSQL / NullStorage       │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Storage pattern:** `NullStorage` is returned when `DEM_SIM_DATABASE_URL` is absent; `PostgresStorage` (SQLAlchemy + psycopg3) when present. The `layers` table uses an append-only snapshot pattern — current state is always `WHERE snapshot_id = MAX(snapshot_id)`.
+
+---
+
+## Project Structure
+
+```
+src/dem_sim/
+├── model.py          # Physics engine (Beverloo + Gaussian + 3 extensions)
+├── service.py        # RunConfig dataclass + run_blend orchestrator
+├── cli.py            # Command-line interface
+├── web.py            # FastAPI app and all API endpoints
+├── state.py          # In-memory silo state + lifecycle functions
+├── charger.py        # Lot allocation to silos (charge logic)
+├── storage.py        # PostgresStorage / NullStorage factory
+├── schema.py         # DDL for operational tables
+├── db.py             # psycopg3 connection helpers
+├── db_models.py      # SQLAlchemy ORM models
+├── io.py             # CSV input loading and output helpers
+├── reporting.py      # Output artifact writers
+├── sample_data.py    # Built-in sample dataset generator
+├── synthetic.py      # Synthetic dataset generation (malt COA ranges)
+└── ui/
+    ├── index.html    # Web app shell
+    ├── styles.css    # Responsive UI styling
+    └── app.js        # Frontend behaviour and API integration
+
+tests/
+├── conftest.py                    # Lifecycle test infrastructure + 7-invariant checker
+├── test_lifecycle_silos.py        # 10 lifecycle DB scenario tests
+├── test_physics_improvements.py   # 27 physics unit tests (3 extensions)
+├── test_model_validation.py       # Model input validation tests
+├── test_model_equivalence.py      # Regression equivalence
+├── test_model_performance.py      # Performance guard
+├── test_process_run_simulation.py # Fill-only simulation endpoint tests
+├── test_web_api.py                # Web API smoke tests
+└── test_smoke.py                  # End-to-end smoke test
+
+scripts/
+├── run_example.py      # Quick run using in-code example dataframes
+└── db_sanity_check.py  # DB schema/data sanity checks
+```
+
+---
+
+## Installation
+
 ```bash
 python -m pip install -e .
 ```
 
 Or install dependencies only:
+
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-## CLI usage
-Create sample input files:
+Requires Python ≥ 3.10.
+
+---
+
+## CLI Usage
+
+**Generate sample input files:**
 ```bash
 dem-sim init-sample --out data/sample
 ```
 
-Create synthetic input files:
+**Generate synthetic input files:**
 ```bash
 dem-sim init-synthetic --out data/synthetic --seed 42 --silos 3 --suppliers 3 --lots 8
 ```
 
-Validate input files:
+**Validate inputs:**
 ```bash
 dem-sim validate --in data/sample
 ```
 
-Run simulation:
+**Run simulation (basic):**
 ```bash
 dem-sim run --in data/sample --out outputs/latest --auto-adjust
 ```
 
-`--steps` guidance (trade-off between speed and smoothness):
-- `400-800`: quick exploratory runs
-- `1200-2000`: default production-style planning (good balance)
-- `3000+`: high-fidelity sensitivity checks (slower)
+**Run with brewery physics extensions:**
+```bash
+dem-sim run --in data/sample --out outputs/latest \
+  --auto-adjust \
+  --moisture-beta 0.05 \
+  --sigma-alpha 0.4 \
+  --skew-alpha -2.0
+```
 
-Run without installing as a script:
+**Physics extension flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--moisture-beta` | `0.0` | Cohesion correction — higher β = wetter malt flows slower |
+| `--sigma-alpha` | `0.0` | Sigma height-scaling — mixing narrows as silo empties |
+| `--skew-alpha` | `0.0` | Asymmetric kernel — negative values bias toward sub-front layers |
+
+**`--steps` guidance:**
+
+| Range | Use case |
+|-------|----------|
+| 400–800 | Quick exploratory runs |
+| 1200–2000 | Default production planning |
+| 3000+ | High-fidelity sensitivity checks |
+
+**Without installing as a package:**
 ```bash
 PYTHONPATH=src python -m dem_sim run --in data/sample --out outputs/latest --auto-adjust
 ```
 
+---
+
 ## Web UI / API
-Start the server:
+
+**Start the server:**
 ```bash
 dem-sim-web --host 127.0.0.1 --port 8000
 ```
 
-Or without script install:
-```bash
-PYTHONPATH=src python -m dem_sim.web --host 127.0.0.1 --port 8000
-```
-
 Open:
-- `http://127.0.0.1:8000/` (full web UI)
-- `http://127.0.0.1:8000/docs` (Swagger UI)
+- `http://127.0.0.1:8000/` — full web UI
+- `http://127.0.0.1:8000/docs` — Swagger / OpenAPI
 
-### UI quick start (operator flow)
+**Operator flow (UI):**
 1. `Load Sample`
 2. `Validate Inputs`
 3. `Run Simulation`
-4. Configure optimization target + preset/iterations/seed
+4. Configure optimization target + preset / iterations / seed
 5. `Optimize Blend`
-6. Review:
-- KPI strip
-- Top candidates
-- What changed
-- Scenario compare
-- Explainability and convergence snapshot
+6. Review KPI strip, top candidates, scenario compare, explainability snapshot
 
-Keyboard shortcuts:
-- `Ctrl/Cmd + Enter`: run simulation
-- `Ctrl/Cmd + Shift + O`: optimize blend
+**Keyboard shortcuts:**
+- `Ctrl/Cmd + Enter` — run simulation
+- `Ctrl/Cmd + Shift + O` — optimize blend
 
-Main endpoints:
-- `GET /health`
-- `GET /api/sample`
-- `POST /api/validate`
-- `POST /api/run`
-- `POST /api/optimize` (searches discharge fractions toward target COA)
-  - Uses normalized weighted L2 objective (error scaled by COA parameter ranges)
-  - Search strategy: stratified exploration + local refinement around current best
-  - Returns best plan plus Top-5 candidate plans
+**Key endpoints:**
 
-## Input files
-Place these CSV files in the input directory:
-- `silos.csv`
-- `layers.csv`
-- `suppliers.csv`
-- `discharge.csv`
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/health` | Health check |
+| `GET` | `/api/sample` | Load sample data |
+| `POST` | `/api/validate` | Validate inputs |
+| `POST` | `/api/run` | Run simulation |
+| `POST` | `/api/optimize` | Optimize discharge fractions toward target COA |
+| `POST` | `/api/process/run_simulation` | Fill-only simulation (charge queue into silos) |
+| `POST` | `/api/process/apply_discharge` | Apply discharge plan, update silo state |
 
-## Output artifacts
-Generated in output directory:
-- `segment_contributions.csv`
-- `lot_contributions.csv`
-- `segment_state_ledger.csv` (initial/discharged/remaining per segment)
-- `lot_state_ledger.csv` (initial/discharged/remaining per lot per silo)
-- `silo_state_ledger.csv` (initial/discharged/remaining per silo)
-- `summary.json`
+The optimizer uses a normalized weighted L2 objective (error scaled by COA parameter ranges) with stratified exploration + local refinement around the current best. Returns best plan plus top-5 candidates.
 
-## UX metric targets
-- Time to first valid run: `<= 180s`
-- Validation issue identification: `<= 10s` median
-- Optimize decision time: `<= 20s` median
-- Run failure rate: `< 2%`
-- Optimize failure rate: `< 3%`
+---
 
-See `docs/ui-ux-m8-handoff.md` for rollout checklist and metric definitions.
-## PostgreSQL Persistence (Optional)
-The API can persist state snapshots, stages, history, and run/optimization results to PostgreSQL.
+## PostgreSQL Persistence
 
-1. Set database URL before starting server:
+The engine can persist silo state snapshots, discharge results, and the full event timeline to PostgreSQL 16.
+
+**Setup:**
 ```bash
-set DEM_SIM_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dem_sim
+export DEM_SIM_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dem_sim
+dem-sim-web
 ```
 
-2. Start server normally. On startup, schema is auto-created if missing.
+Schema is auto-created on first startup.
 
-Tables created automatically:
-- `sim_snapshots` (full state + summary per key event)
-- `sim_stages` (deduped stage timeline)
-- `sim_history` (deduped state history)
-- `sim_results` (`/api/run`, `/api/optimize`, discharge prediction payloads)
+**Tables created automatically:**
 
-If `DEM_SIM_DATABASE_URL` is not set, app behavior remains unchanged (in-memory only).
+| Table | Contents |
+|-------|---------|
+| `silos` | Silo physical parameters |
+| `suppliers` | Supplier COA parameters (moisture, extract, pH, etc.) |
+| `layers` | Append-only lot layer snapshots (current = max snapshot_id) |
+| `incoming_queue` | Lots waiting to be charged into silos |
+| `results_run` | Discharge simulation results |
+| `sim_snapshots` | Full state + summary per key event (ORM) |
+| `sim_stages` | Deduped stage timeline (ORM) |
+| `sim_history` | Deduped state history (ORM) |
+| `sim_results` | Run / optimize / discharge prediction payloads (ORM) |
+
+If `DEM_SIM_DATABASE_URL` is not set, the app runs fully in-memory with no change in behaviour.
+
+---
+
+## Lifecycle DB Testing
+
+The lifecycle tests validate that the full silo cycle — charge → discharge → recharge → discharge — maintains **seven physical invariants** at every single step, checked against both the database and the in-memory state.
+
+**Seven Invariants:**
+
+| ID | Invariant |
+|----|-----------|
+| INV-1 | **Mass conservation** — `db_remaining + cumulative_discharged == total_charged` (±0.01 kg) |
+| INV-2 | **Layer index integrity** — per silo, `layer_index` is contiguous 1..N with no gaps |
+| INV-3 | **Supplier consistency** — a `lot_id` always maps to the same supplier, never changes |
+| INV-4 | **No negative mass** — every `layers.loaded_mass >= 0` |
+| INV-5 | **Capacity never exceeded** — `SUM(loaded_mass per silo) <= capacity_kg` |
+| INV-6 | **Lot mass accounting** — `silo_mass + queue_mass <= original_charged_mass` per lot |
+| INV-7 | **DB matches memory** — DB total per silo == in-memory total per silo (±0.01 kg) |
+
+**Ten scenario tests:**
+
+| Scenario | What it tests |
+|----------|--------------|
+| Single charge + discharge | Baseline correctness |
+| Repeated discharges | 4 × 20% discharges, conservation at each step |
+| Charge → discharge → recharge → discharge | Core brewery cycle; new lots stack on top |
+| Lot split across silos | 8000 kg lot distributes across two 5000 kg silos |
+| Capacity overflow | Excess stays in queue, never enters silos |
+| 20 random cycles | Mass conservation + snapshot_id monotonicity |
+| Supplier consistency | Exhaustive DB check of INV-3 across all history |
+| DB ↔ memory agreement | Explicit INV-7 check at every single step |
+| Zero-mass layer cleanup | Fully discharged layers do not corrupt future ops |
+| Full brewery week | 6 lots initial fill, 5 brews, mid-week delivery |
+
+---
+
+## Running Tests
+
+**All tests (physics + lifecycle + API):**
+```bash
+DEM_SIM_TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/dem_sim_test" \
+  python -m pytest -v
+```
+
+**Physics tests only (no DB required):**
+```bash
+python -m pytest tests/test_physics_improvements.py -v
+```
+
+**Lifecycle DB tests only:**
+```bash
+DEM_SIM_TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/dem_sim_test" \
+  python -m pytest tests/test_lifecycle_silos.py -v
+```
+
+Lifecycle tests are **auto-skipped** when `DEM_SIM_TEST_DATABASE_URL` is not set.
+
+**Current test coverage: 44 tests, all passing.**
+
+---
+
+## Input Files
+
+Place these CSV files in the input directory:
+
+| File | Required columns |
+|------|-----------------|
+| `silos.csv` | `silo_id`, `capacity_kg`, `body_diameter_m`, `outlet_diameter_m` |
+| `layers.csv` | `silo_id`, `layer_index`, `lot_id`, `supplier`, `segment_mass_kg` |
+| `suppliers.csv` | `supplier`, `moisture_pct`, `fine_extract_db_pct`, `wort_pH`, `diastatic_power_WK`, `total_protein_pct`, `wort_colour_EBC` |
+| `discharge.csv` | `silo_id`, `discharge_fraction` or `discharge_mass_kg` |
+
+---
+
+## Output Artifacts
+
+Generated in the output directory after a run:
+
+| File | Contents |
+|------|---------|
+| `segment_contributions.csv` | Per-segment lot contribution at each timestep |
+| `lot_contributions.csv` | Aggregated discharged mass per lot |
+| `segment_state_ledger.csv` | Initial / discharged / remaining per segment |
+| `lot_state_ledger.csv` | Initial / discharged / remaining per lot per silo |
+| `silo_state_ledger.csv` | Initial / discharged / remaining per silo |
+| `summary.json` | Total discharged mass, blended COA parameters, per-silo results |
+
+---
+
+## Docker
+
+**Start the database only:**
+```bash
+docker compose up -d db
+```
+
+**Start the full stack (app + db):**
+```bash
+docker compose up -d
+```
+
+The app is available at `http://localhost:8000`.
+
+**Environment variables:**
+
+| Variable | Description |
+|----------|-------------|
+| `DEM_SIM_DATABASE_URL` | PostgreSQL connection string for the app |
+| `DEM_SIM_TEST_DATABASE_URL` | Test database URL (lifecycle tests only) |
