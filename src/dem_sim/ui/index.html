@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>DEM Blend Studio</title>
-  <link rel="stylesheet" href="/ui/styles.css" />
+  <link rel="stylesheet" href="/ui/styles.css?v=2" />
 </head>
 <body>
   <a class="skip-link" href="#mainContent">Skip to Main Content</a>
@@ -15,7 +15,6 @@
         <p>Plan silo discharge, validate data health, run simulation, and optimize target blend.</p>
       </div>
       <div class="actions">
-        <button id="loadSampleBtn" class="btn">Load Sample</button>
         <button id="validateBtn" class="btn btn-alt">Validate Inputs</button>
         <button id="runBtn" class="btn btn-strong">Run Simulation</button>
         <button id="optimizeBtn" class="btn btn-opt">Optimize Blend</button>
@@ -35,14 +34,16 @@
         <div class="kpi-key">Remaining (kg)</div>
         <div class="kpi-value" id="kpiRemaining">0.000</div>
       </article>
-      <article class="kpi-card">
-        <div class="kpi-key">Objective Score</div>
-        <div class="kpi-value" id="kpiObjective">N/A</div>
-      </article>
     </section>
 
-    <main class="layout" id="mainContent">
-      <section class="workflow-col">
+    <nav class="tab-nav" aria-label="Workflow Tabs">
+      <button id="tabStudioBtn" class="tab-btn is-active" data-tab="studio" aria-controls="tabStudioPanel" aria-selected="true">Studio</button>
+      <button id="tabScheduleBtn" class="tab-btn" data-tab="schedule" aria-controls="tabSchedulePanel" aria-selected="false">Schedule</button>
+    </nav>
+
+    <section id="tabStudioPanel" class="tab-panel is-active" data-tab-panel="studio">
+      <main class="layout" id="mainContent">
+        <section class="workflow-col">
         <article class="step-card" id="stepInput" aria-labelledby="stepInputTitle">
           <div class="step-head">
             <div class="step-index">1</div>
@@ -51,8 +52,10 @@
               <div class="step-status" id="statusInput" aria-live="polite">Pending</div>
             </div>
           </div>
-          <div class="panel-title">Upcoming Lots</div>
+          <div class="panel-title">Loaded Lots</div>
           <div id="upcomingLotsWrap"></div>
+          <div class="panel-title top-gap">Incoming Lots</div>
+          <div id="incomingLotsWrap"></div>
           <div class="panel-title top-gap">Validation Result</div>
           <div id="validationSummary" class="validation-summary" role="status" aria-live="polite">Run validation to check readiness.</div>
           <div id="validationOut" class="validation-list" role="region" aria-label="Validation Issues"></div>
@@ -69,9 +72,9 @@
           <div class="panel-title">Input Payload</div>
           <textarea id="payload" spellcheck="false" aria-label="Input Payload JSON"></textarea>
         </article>
-      </section>
+        </section>
 
-      <section class="analysis-col">
+        <section class="analysis-col">
         <article class="step-card" id="stepResults" aria-labelledby="stepResultsTitle">
           <div class="step-head">
             <div class="step-index">3</div>
@@ -87,8 +90,7 @@
           <div id="remainingFocusWrap" class="viz-grid"></div>
           <div class="panel-title top-gap">Discharge Contribution by Silo</div>
           <div id="contributionWrap" class="bar-stack"></div>
-          <div class="panel-title top-gap">Silo State</div>
-          <div id="stateLedgerWrap"></div>
+          <div id="stateLedgerWrap" style="display:none;"></div>
           <div class="panel-title top-gap">Per-Silo</div>
           <div id="siloTableWrap"></div>
         </article>
@@ -123,20 +125,11 @@
           <div id="candidateControls" class="candidate-controls">
             <label>Sort by
               <select id="candidateSort">
-                <option value="score" selected>Objective Score</option>
-                <option value="discharged">Discharged Mass</option>
+                <option value="discharged" selected>Discharged Mass</option>
               </select>
             </label>
           </div>
           <div id="candidateTableWrap"></div>
-          <div class="panel-title top-gap">What Changed</div>
-          <div id="changeSummaryWrap" class="change-summary"></div>
-          <div class="panel-title top-gap">Scenario Compare</div>
-          <div id="scenarioCompareWrap" class="compare-grid"></div>
-          <div class="panel-title top-gap">Explainability</div>
-          <div id="explainabilityWrap" class="explain-card"></div>
-          <div class="panel-title top-gap">Convergence Snapshot</div>
-          <div id="convergenceWrap" class="convergence-card"></div>
           <div class="panel-title top-gap">Optimization Result</div>
           <pre id="optOut" role="region" aria-label="Optimization Output"></pre>
         </article>
@@ -145,10 +138,125 @@
           <summary>Advanced / Raw Response</summary>
           <pre id="rawOut" role="region" aria-label="Raw API Response"></pre>
         </details>
-      </section>
-    </main>
+        </section>
+      </main>
+    </section>
+
+    <section id="tabSchedulePanel" class="tab-panel" data-tab-panel="schedule" hidden>
+      <div class="layout schedule-layout">
+        <section class="workflow-col">
+          <article class="step-card" aria-labelledby="scheduleDataTitle">
+            <div class="step-head">
+              <div class="step-index">1</div>
+              <div>
+                <div class="step-title" id="scheduleDataTitle">Generate Random Data</div>
+                <div class="step-status">State Setup</div>
+              </div>
+            </div>
+            <div class="target-grid">
+              <label>Seed <input id="sched_seed" type="number" step="1" value="42" /></label>
+              <label>Silos Count <input id="sched_silos_count" type="number" step="1" value="3" /></label>
+              <label>Lots Count <input id="sched_lots_count" type="number" step="1" value="100" /></label>
+              <label>Lot Size (kg) <input id="sched_lot_size_kg" type="number" step="0.001" value="2000" /></label>
+            </div>
+            <div class="top-gap">
+              <button id="schedGenerateRandomBtn" class="btn btn-strong">Generate Random</button>
+            </div>
+            <div id="schedRandomStatus" class="run-status top-gap">Generate random data to see inventory summary.</div>
+            <div class="panel-title top-gap">Silos</div>
+            <div id="schedGenSilosWrap"></div>
+            <div class="panel-title top-gap">Suppliers</div>
+            <div id="schedGenSuppliersWrap"></div>
+            <div class="panel-title top-gap">Loaded Lots</div>
+            <div id="schedGenLoadedLotsWrap"></div>
+            <div class="panel-title top-gap">Incoming Queue</div>
+            <div id="schedGenIncomingLotsWrap"></div>
+          </article>
+
+          <article class="step-card" aria-labelledby="scheduleBuildTitle">
+            <div class="step-head">
+              <div class="step-index">2</div>
+              <div>
+                <div class="step-title" id="scheduleBuildTitle">Generate Schedule</div>
+                <div class="step-status">Plan Brews</div>
+              </div>
+            </div>
+            <div class="target-grid">
+              <label>Schedule ID <input id="sched_schedule_id" type="text" placeholder="auto" /></label>
+              <label>Schedule Name <input id="sched_name" type="text" value="MVP Brew Schedule" /></label>
+              <label>Brews Count <input id="sched_brews_count" type="number" step="1" value="5" /></label>
+              <label>Seed <input id="sched_schedule_seed" type="number" step="1" value="42" /></label>
+            </div>
+            <div class="top-gap">
+              <button id="schedGenerateScheduleBtn" class="btn">Generate Schedule</button>
+            </div>
+            <div id="schedScheduleStatus" class="run-status top-gap">Generate a schedule to see brew plan.</div>
+            <div class="panel-title top-gap">Brew Plan</div>
+            <div id="schedGenBrewsWrap"></div>
+          </article>
+        </section>
+
+        <section class="analysis-col">
+          <article class="step-card" id="schedStepRun" aria-labelledby="scheduleRunTitle">
+            <div class="step-head">
+              <div class="step-index">3</div>
+              <div>
+                <div class="step-title" id="scheduleRunTitle">Run Simulation</div>
+                <div class="step-status" id="schedSimStatus" aria-live="polite">Ready</div>
+              </div>
+            </div>
+            <button id="schedRunSimulationBtn" class="btn btn-strong">Run Simulation</button>
+            <div class="panel-title top-gap">Run Summary</div>
+            <div id="schedRunStatus" class="run-status" role="status" aria-live="polite">Simulation not started.</div>
+            <div id="schedSummaryCards" class="cards"></div>
+            <div class="panel-title top-gap">Remaining Mass Focus</div>
+            <div id="schedRemainingFocusWrap" class="viz-grid"></div>
+            <div class="panel-title top-gap">Discharge Contribution by Silo</div>
+            <div id="schedContributionWrap" class="bar-stack"></div>
+            <div class="panel-title top-gap">Per-Silo</div>
+            <div id="schedSiloTableWrap"></div>
+          </article>
+
+          <article class="step-card" id="schedStepOptimize" aria-labelledby="scheduleOptimizeTitle">
+            <div class="step-head">
+              <div class="step-index">4</div>
+              <div>
+                <div class="step-title" id="scheduleOptimizeTitle">Optimize &amp; Discharge</div>
+                <div class="step-status" id="schedOptStatus" aria-live="polite">Per Brew</div>
+              </div>
+            </div>
+            <div class="target-grid">
+              <label>Schedule ID <input id="sched_opt_schedule_id" type="text" placeholder="Set by Generate Schedule" /></label>
+              <label>Brew
+                <select id="sched_opt_brew_id"></select>
+              </label>
+              <label>Iterations <input id="sched_opt_iterations" type="number" step="1" value="120" /></label>
+              <label>Seed <input id="sched_opt_seed" type="number" step="1" value="42" /></label>
+            </div>
+            <div class="top-gap">
+              <button id="schedOptimizeBtn" class="btn btn-opt">Optimize Schedule</button>
+            </div>
+            <div class="panel-title top-gap">Top Candidates</div>
+            <div id="schedCandidateControls" class="candidate-controls">
+              <label>Sort by
+                <select id="schedCandidateSort">
+                  <option value="discharged" selected>Discharged Mass</option>
+                </select>
+              </label>
+            </div>
+            <div id="schedCandidateTableWrap"></div>
+            <div class="panel-title top-gap">Brew Execution Details</div>
+            <div id="scheduleBrewDetailsWrap"></div>
+            <details class="advanced top-gap">
+              <summary>Raw Optimization Output</summary>
+              <pre id="schedOptimizationOut" role="region" aria-label="Schedule Optimization Output"></pre>
+            </details>
+          </article>
+        </section>
+      </div>
+    </section>
   </div>
 
-  <script src="/ui/app.js?v=3"></script>
+  <script src="/ui/app.js?v=10"></script>
 </body>
 </html>

@@ -6,25 +6,53 @@ const optOutEl = document.getElementById("optOut");
 const summaryCardsEl = document.getElementById("summaryCards");
 const siloTableWrapEl = document.getElementById("siloTableWrap");
 const upcomingLotsWrapEl = document.getElementById("upcomingLotsWrap");
+const incomingLotsWrapEl = document.getElementById("incomingLotsWrap");
 const stateLedgerWrapEl = document.getElementById("stateLedgerWrap");
 const remainingFocusWrapEl = document.getElementById("remainingFocusWrap");
 const contributionWrapEl = document.getElementById("contributionWrap");
 const runStatusEl = document.getElementById("runStatus");
 const candidateTableWrapEl = document.getElementById("candidateTableWrap");
-const changeSummaryWrapEl = document.getElementById("changeSummaryWrap");
-const scenarioCompareWrapEl = document.getElementById("scenarioCompareWrap");
-const explainabilityWrapEl = document.getElementById("explainabilityWrap");
-const convergenceWrapEl = document.getElementById("convergenceWrap");
 const optPresetEl = document.getElementById("opt_preset");
 const optSeedEl = document.getElementById("opt_seed");
 const candidateSortEl = document.getElementById("candidateSort");
 const optimizeBtn = document.getElementById("optimizeBtn");
 const runBtn = document.getElementById("runBtn");
+const tabStudioBtn = document.getElementById("tabStudioBtn");
+const tabScheduleBtn = document.getElementById("tabScheduleBtn");
+const tabPanels = Array.from(document.querySelectorAll("[data-tab-panel]"));
+const scheduleBrewDetailsWrapEl = document.getElementById("scheduleBrewDetailsWrap");
+const schedCandidateSortEl = document.getElementById("schedCandidateSort");
+const schedCandidateTableWrapEl = document.getElementById("schedCandidateTableWrap");
+const schedOptimizationOutEl = document.getElementById("schedOptimizationOut");
+// Schedule simulation card elements
+const schedRunStatusEl = document.getElementById("schedRunStatus");
+const schedSummaryCardsEl = document.getElementById("schedSummaryCards");
+const schedRemainingFocusWrapEl = document.getElementById("schedRemainingFocusWrap");
+const schedContributionWrapEl = document.getElementById("schedContributionWrap");
+const schedSiloTableWrapEl = document.getElementById("schedSiloTableWrap");
+const schedStepRunEl = document.getElementById("schedStepRun");
+const schedSimStatusEl = document.getElementById("schedSimStatus");
+const schedStepOptimizeEl = document.getElementById("schedStepOptimize");
+const schedOptStatusEl = document.getElementById("schedOptStatus");
+// Schedule generate-random card elements
+const schedRandomStatusEl = document.getElementById("schedRandomStatus");
+const schedGenSilosWrapEl = document.getElementById("schedGenSilosWrap");
+const schedGenSuppliersWrapEl = document.getElementById("schedGenSuppliersWrap");
+const schedGenLoadedLotsWrapEl = document.getElementById("schedGenLoadedLotsWrap");
+const schedGenIncomingLotsWrapEl = document.getElementById("schedGenIncomingLotsWrap");
+// Schedule generate-schedule card elements
+const schedScheduleStatusEl = document.getElementById("schedScheduleStatus");
+const schedGenBrewsWrapEl = document.getElementById("schedGenBrewsWrap");
+// Buttons
+const schedGenerateRandomBtn = document.getElementById("schedGenerateRandomBtn");
+const schedGenerateScheduleBtn = document.getElementById("schedGenerateScheduleBtn");
+const schedRunSimulationBtn = document.getElementById("schedRunSimulationBtn");
+const schedOptimizeBtn = document.getElementById("schedOptimizeBtn");
+const schedOptBrewIdEl = document.getElementById("sched_opt_brew_id");
 
 const kpiValidationEl = document.getElementById("kpiValidation");
 const kpiDischargedEl = document.getElementById("kpiDischarged");
 const kpiRemainingEl = document.getElementById("kpiRemaining");
-const kpiObjectiveEl = document.getElementById("kpiObjective");
 
 const stepInput = document.getElementById("stepInput");
 const stepRun = document.getElementById("stepRun");
@@ -36,9 +64,311 @@ const statusResults = document.getElementById("statusResults");
 const statusOptimize = document.getElementById("statusOptimize");
 let lastRunResult = null;
 let lastOptimizePayload = null;
+let lastOptimizeContext = { mode: "studio", scheduleId: "", brewId: "" };
 let isValidating = false;
 let isRunning = false;
 let isOptimizing = false;
+let currentScheduleId = "";
+let scheduleSimulationSnapshot = null;
+const scheduleBrewState = new Map();
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function formatTimeLabel(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString();
+}
+
+function formatMass(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "-";
+  return `${Number(value).toFixed(3)} kg`;
+}
+
+function updateScheduleBrewState(brewId, patch) {
+  if (!brewId) return;
+  const prev = scheduleBrewState.get(brewId) || {
+    brew_id: brewId,
+    brew_index: null,
+    simulation_status: "pending",
+    simulation_at: null,
+    simulation_note: "Not run",
+    optimization_status: "pending",
+    optimization_at: null,
+    top_candidate_mass_kg: null,
+    candidate_count: 0,
+    discharge_status: "pending",
+    discharge_at: null,
+    discharged_mass_kg: null,
+    selected_candidate_index: null,
+    applied_event_id: null,
+  };
+  scheduleBrewState.set(brewId, { ...prev, ...patch });
+}
+
+function seedScheduleBrewState(items = []) {
+  scheduleBrewState.clear();
+  (items || []).forEach((item) => {
+    const brewId = String(item?.brew_id || "").trim();
+    if (!brewId) return;
+    updateScheduleBrewState(brewId, {
+      brew_index: Number(item?.brew_index || 0) || null,
+      optimization_status: item?.status === "optimized" || item?.status === "applied" ? "complete" : "pending",
+      discharge_status: item?.status === "applied" ? "complete" : "pending",
+      selected_candidate_index:
+        item?.selected_candidate_index === null || item?.selected_candidate_index === undefined
+          ? null
+          : Number(item.selected_candidate_index),
+      applied_event_id: item?.applied_event_id ?? null,
+    });
+  });
+  renderScheduleBrewDetails();
+}
+
+function renderScheduleBrewDetails() {
+  if (!scheduleBrewDetailsWrapEl) return;
+  const rows = Array.from(scheduleBrewState.values()).sort(
+    (a, b) => Number(a.brew_index || 0) - Number(b.brew_index || 0)
+  );
+  if (!rows.length) {
+    scheduleBrewDetailsWrapEl.innerHTML = "<div class='run-status'>Generate a schedule to view brew-wise simulation, optimization, and discharge details.</div>";
+    return;
+  }
+  const htmlRows = rows
+    .map(
+      (row) => `
+      <tr>
+        <td>${row.brew_id}</td>
+        <td>${row.simulation_status}</td>
+        <td>${row.simulation_note || "-"}</td>
+        <td>${row.optimization_status}</td>
+        <td>${formatMass(row.top_candidate_mass_kg)} (${Number(row.candidate_count || 0)} cand.)</td>
+        <td>${row.discharge_status}</td>
+        <td>${formatMass(row.discharged_mass_kg)}</td>
+        <td>${
+          row.selected_candidate_index === null || row.selected_candidate_index === undefined
+            ? "-"
+            : Number(row.selected_candidate_index) + 1
+        }</td>
+        <td>${row.applied_event_id ?? "-"}</td>
+        <td>${formatTimeLabel(row.discharge_at || row.optimization_at || row.simulation_at)}</td>
+      </tr>
+    `
+    )
+    .join("");
+  scheduleBrewDetailsWrapEl.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Brew</th>
+          <th>Simulation</th>
+          <th>Simulation Detail</th>
+          <th>Optimization</th>
+          <th>Top Candidate</th>
+          <th>Discharge</th>
+          <th>Discharged</th>
+          <th>Candidate #</th>
+          <th>Applied Event</th>
+          <th>Last Updated</th>
+        </tr>
+      </thead>
+      <tbody>${htmlRows}</tbody>
+    </table>
+  `;
+}
+
+async function refreshScheduleState(scheduleId) {
+  const resolved = String(scheduleId || "").trim();
+  if (!resolved) return;
+  const r = await fetch(`/api/schedules/${encodeURIComponent(resolved)}`);
+  const data = await r.json();
+  if (!r.ok) throw new Error(data?.detail || "Failed to fetch schedule state.");
+  const items = data?.items || [];
+  items.forEach((item) => {
+    const brewId = String(item?.brew_id || "").trim();
+    if (!brewId) return;
+    const status = String(item?.status || "pending");
+    updateScheduleBrewState(brewId, {
+      brew_index: Number(item?.brew_index || 0) || null,
+      optimization_status: status === "optimized" || status === "applied" ? "complete" : "pending",
+      discharge_status: status === "applied" ? "complete" : "pending",
+      selected_candidate_index:
+        item?.selected_candidate_index === null || item?.selected_candidate_index === undefined
+          ? null
+          : Number(item.selected_candidate_index),
+      applied_event_id: item?.applied_event_id ?? null,
+    });
+  });
+  renderScheduleBrewDetails();
+}
+
+function setActiveTab(tabName) {
+  tabPanels.forEach((panel) => {
+    const active = panel.getAttribute("data-tab-panel") === tabName;
+    panel.classList.toggle("is-active", active);
+    panel.hidden = !active;
+  });
+  if (tabStudioBtn) {
+    const active = tabName === "studio";
+    tabStudioBtn.classList.toggle("is-active", active);
+    tabStudioBtn.setAttribute("aria-selected", String(active));
+  }
+  if (tabScheduleBtn) {
+    const active = tabName === "schedule";
+    tabScheduleBtn.classList.toggle("is-active", active);
+    tabScheduleBtn.setAttribute("aria-selected", String(active));
+  }
+}
+
+function printScheduleDebug(targetEl, data) {
+  if (!targetEl) return;
+  targetEl.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+}
+
+// ── Schedule structured renders ────────────────────────────────────────────
+
+function renderSchedRandomData(payload) {
+  const silos = payload.silos || [];
+  const suppliers = payload.suppliers || [];
+  const queue = payload.incoming_queue || [];
+
+  if (schedGenSilosWrapEl) {
+    const rows = silos.map(s => `<tr><td>${s.silo_id}</td><td>${Number(s.capacity_kg||0).toFixed(0)}</td><td>${Number(s.body_diameter_m||0).toFixed(3)}</td><td>${Number(s.outlet_diameter_m||0).toFixed(3)}</td></tr>`).join("");
+    schedGenSilosWrapEl.innerHTML = `<table><thead><tr><th>Silo</th><th>Capacity (kg)</th><th>Body Dia (m)</th><th>Outlet Dia (m)</th></tr></thead><tbody>${rows || "<tr><td colspan='4'>No silos</td></tr>"}</tbody></table>`;
+  }
+  if (schedGenSuppliersWrapEl) {
+    const rows = suppliers.map(s => `<tr><td>${s.supplier}</td><td>${Number(s.moisture_pct||0).toFixed(2)}</td><td>${Number(s.fine_extract_db_pct||0).toFixed(2)}</td><td>${Number(s.diastatic_power_WK||0).toFixed(0)}</td><td>${Number(s.wort_colour_EBC||0).toFixed(2)}</td></tr>`).join("");
+    schedGenSuppliersWrapEl.innerHTML = `<table><thead><tr><th>Supplier</th><th>Moisture%</th><th>Fine Extract%</th><th>Diast. Power</th><th>Colour EBC</th></tr></thead><tbody>${rows || "<tr><td colspan='5'>No suppliers</td></tr>"}</tbody></table>`;
+  }
+  // loaded lots from layers
+  const loadedMap = new Map();
+  (payload.layers || []).forEach(r => {
+    const mass = Number(r.remaining_mass_kg ?? r.loaded_mass ?? r.segment_mass_kg ?? 0);
+    if (mass <= 0) return;
+    const key = `${r.lot_id}__${r.supplier}`;
+    loadedMap.set(key, (loadedMap.get(key) || 0) + mass);
+  });
+  if (schedGenLoadedLotsWrapEl) {
+    const loaded = Array.from(loadedMap.entries());
+    if (!loaded.length) {
+      schedGenLoadedLotsWrapEl.innerHTML = "<div style='color:var(--muted);font-size:12px;padding:6px 0'>No lots currently loaded in silos.</div>";
+    } else {
+      const rows = loaded.map(([k, mass]) => { const [lot, sup] = k.split("__"); return `<tr><td>${lot}</td><td>${sup}</td><td>${mass.toFixed(3)}</td></tr>`; }).join("");
+      schedGenLoadedLotsWrapEl.innerHTML = `<table><thead><tr><th>Lot</th><th>Supplier</th><th>Total Loaded (kg)</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+  }
+  if (schedGenIncomingLotsWrapEl) {
+    const rows = queue.slice(0, 20).map(item => `<tr><td>${item.lot_id||""}</td><td>${item.supplier||""}</td><td>${Number(item.mass_kg||0).toFixed(3)}</td></tr>`).join("");
+    const more = queue.length > 20 ? `<tr><td colspan="3" style="color:var(--muted)">…and ${queue.length - 20} more lots</td></tr>` : "";
+    schedGenIncomingLotsWrapEl.innerHTML = `<table><thead><tr><th>Lot</th><th>Supplier</th><th>Mass (kg)</th></tr></thead><tbody>${rows || "<tr><td colspan='3'>Empty queue</td></tr>"}${more}</tbody></table>`;
+  }
+  if (schedRandomStatusEl) {
+    const total = queue.reduce((acc, i) => acc + Number(i.mass_kg||0), 0);
+    schedRandomStatusEl.className = "run-status success top-gap";
+    schedRandomStatusEl.textContent = `Generated: ${silos.length} silos · ${suppliers.length} suppliers · ${queue.length} lots (${total.toFixed(0)} kg queue).`;
+  }
+}
+
+function renderSchedSchedulePlan(data) {
+  const items = data.items || [];
+  if (schedScheduleStatusEl) {
+    schedScheduleStatusEl.className = "run-status success top-gap";
+    schedScheduleStatusEl.textContent = `Schedule "${data.name || ""}" (ID: ${data.schedule_id || ""}) — ${items.length} brews planned.`;
+  }
+  if (schedGenBrewsWrapEl) {
+    if (!items.length) {
+      schedGenBrewsWrapEl.innerHTML = "<div style='color:var(--muted);font-size:12px;padding:6px 0'>No brews in schedule.</div>";
+      return;
+    }
+    const rows = items.map(item => {
+      const tp = item.target_params || {};
+      const statusColor = item.status === "applied" ? "ok" : item.status === "optimized" ? "warn" : "";
+      return `<tr>
+        <td>${item.brew_index||""}</td>
+        <td><strong>${item.brew_id||""}</strong></td>
+        <td>${Number(tp.moisture_pct||0).toFixed(2)}</td>
+        <td>${Number(tp.fine_extract_db_pct||0).toFixed(2)}</td>
+        <td>${Number(tp.diastatic_power_WK||0).toFixed(0)}</td>
+        <td>${Number(tp.wort_pH||0).toFixed(2)}</td>
+        <td>${statusColor ? `<span class="badge ${statusColor}">${item.status}</span>` : item.status||"pending"}</td>
+      </tr>`;
+    }).join("");
+    schedGenBrewsWrapEl.innerHTML = `<table><thead><tr><th>#</th><th>Brew ID</th><th>Moisture%</th><th>Fine Ext%</th><th>Diast.Power</th><th>Wort pH</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+}
+
+function renderSchedSimResults(summary, statusMsg, statusClass) {
+  if (schedRunStatusEl) {
+    schedRunStatusEl.className = `run-status ${statusClass || "success"}`;
+    schedRunStatusEl.textContent = statusMsg || "Simulation complete.";
+  }
+  const silos = summary?.silos || [];
+  const totalCapacity = silos.reduce((a, s) => a + Number(s.capacity_kg || 0), 0);
+  const totalUsed = silos.reduce((a, s) => a + Number(s.used_kg || 0), 0);
+  const totalRemaining = silos.reduce((a, s) => a + Number(s.remaining_kg || 0), 0);
+  const cumDischarged = Number(summary?.cumulative_discharged_kg || 0);
+  const queueCount = Number(summary?.incoming_queue?.count || 0);
+  const queueMass = Number(summary?.incoming_queue?.total_mass_kg || 0);
+
+  if (schedSummaryCardsEl) {
+    schedSummaryCardsEl.innerHTML = `
+      <div class="card"><div class="card-key">Total Capacity (kg)</div><div class="card-value">${totalCapacity.toFixed(3)}</div></div>
+      <div class="card"><div class="card-key">Current Inventory (kg)</div><div class="card-value">${totalUsed.toFixed(3)}</div></div>
+      <div class="card"><div class="card-key">Total Remaining (kg)</div><div class="card-value">${totalRemaining.toFixed(3)}</div></div>
+      <div class="card"><div class="card-key">Incoming Queue Count</div><div class="card-value">${queueCount}</div></div>
+      <div class="card"><div class="card-key">Incoming Queue Mass (kg)</div><div class="card-value">${queueMass.toFixed(3)}</div></div>
+      <div class="card"><div class="card-key">Cumulative Discharged (kg)</div><div class="card-value">${cumDischarged.toFixed(3)}</div></div>
+    `;
+  }
+  if (schedRemainingFocusWrapEl) {
+    schedRemainingFocusWrapEl.innerHTML = !silos.length ? "" : silos.map(s => {
+      const pct = Math.max(0, Math.min(100, Number(s.remaining_pct || 0)));
+      return `<article class="gauge-card"><div class="gauge-top"><span class="gauge-id">${s.silo_id}</span><span class="gauge-pct">${pct.toFixed(1)}%</span></div><div class="gauge-track"><div class="gauge-fill" style="width:${pct.toFixed(2)}%"></div></div><div class="gauge-meta">${Number(s.remaining_kg||0).toFixed(3)} kg remaining</div></article>`;
+    }).join("");
+  }
+  if (schedSiloTableWrapEl) {
+    const rows = silos.map(s => {
+      const lotDisplay = (s.lots || []).filter(l => Number(l.remaining_mass_kg||0) > 0.5).map(l => `${Number(l.current_layer_index ?? l.layer_index ?? 0)}:${String(l.lot_id||"")}(${Number(l.remaining_mass_kg||0).toFixed(0)})`).join(" | ");
+      return `<tr><td>${s.silo_id}</td><td>${Number(s.capacity_kg||0).toFixed(3)}</td><td>${Number(s.used_kg||0).toFixed(3)}</td><td>${Number(s.remaining_kg||0).toFixed(3)}</td><td>${Number(s.remaining_pct||0).toFixed(2)}</td><td>${lotDisplay}</td></tr>`;
+    }).join("");
+    schedSiloTableWrapEl.innerHTML = `<table><thead><tr><th>Silo</th><th>Capacity (kg)</th><th>Used (kg)</th><th>Remaining (kg)</th><th>Remaining (%)</th><th>Lots (bottom→top)</th></tr></thead><tbody>${rows || "<tr><td colspan='6'>No silo data</td></tr>"}</tbody></table>`;
+  }
+  if (schedStepRunEl && schedSimStatusEl) {
+    schedStepRunEl.classList.remove("is-success", "is-active", "is-warning");
+    schedStepRunEl.classList.add("is-success");
+    schedSimStatusEl.textContent = "Complete";
+  }
+}
+
+function renderSchedDischargeContribution(predictedRun) {
+  if (!schedContributionWrapEl) return;
+  const perSilo = predictedRun?.per_silo || {};
+  const entries = Object.entries(perSilo);
+  const total = entries.reduce((acc, [, v]) => acc + Number(v.discharged_mass_kg || 0), 0);
+  if (!entries.length || total <= 0) { schedContributionWrapEl.innerHTML = ""; return; }
+  schedContributionWrapEl.innerHTML = entries.map(([id, v]) => {
+    const mass = Number(v.discharged_mass_kg || 0);
+    const pct = (mass / total) * 100;
+    return `<div class="bar-row"><div class="bar-label">${id}</div><div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(2)}%"></div></div><div class="bar-value">${pct.toFixed(1)}%</div></div>`;
+  }).join("");
+}
+
+function syncScheduleResultAnalysisFromStudio() {
+  // no-op: schedule now renders its own results directly
+}
+
+function populateScheduleBrewSelect(items = []) {
+  if (!schedOptBrewIdEl) return;
+  const options = (items || [])
+    .map((item) => String(item?.brew_id || "").trim())
+    .filter(Boolean)
+    .map((brewId) => `<option value="${brewId}">${brewId}</option>`)
+    .join("");
+  schedOptBrewIdEl.innerHTML = options || '<option value="">No brews available</option>';
+}
 
 function printRaw(data) {
   rawOutEl.textContent = typeof data === "string" ? data : JSON.stringify(data, null, 2);
@@ -187,15 +517,64 @@ function renderSiloTable(result) {
   `;
 }
 
+function renderSiloFillTable(summary) {
+  const rows = (summary?.silos || [])
+    .map(
+      (s) => {
+        const lotDisplay = (s.lots || [])
+          .filter((l) => Number(l.remaining_mass_kg || 0) > 0.5)
+          .map(
+            (l) =>
+              `${Number(l.current_layer_index ?? l.layer_index ?? 0)}:${String(l.lot_id || "")}(${Number(
+                l.remaining_mass_kg || 0
+              ).toFixed(0)})`
+          )
+          .join(" | ");
+        return `
+    <tr>
+      <td>${s.silo_id}</td>
+      <td>${Number(s.capacity_kg || 0).toFixed(3)}</td>
+      <td>${Number(s.used_kg || 0).toFixed(3)}</td>
+      <td>${Number(s.remaining_kg || 0).toFixed(3)}</td>
+      <td>${Number(s.remaining_pct || 0).toFixed(2)}</td>
+      <td>${lotDisplay}</td>
+    </tr>
+  `;
+      }
+    )
+    .join("");
+
+  siloTableWrapEl.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Silo</th>
+          <th>Capacity (kg)</th>
+          <th>Used (kg)</th>
+          <th>Remaining (kg)</th>
+          <th>Remaining (%)</th>
+          <th>Lots (bottom-&gt;top)</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
 function renderUpcomingLots(payload) {
   const layers = payload.layers || [];
-  const map = new Map();
+  const loadedMap = new Map();
   layers.forEach((r) => {
+    const mass = Number(
+      r.remaining_mass_kg ?? r.loaded_mass ?? r.segment_mass_kg ?? 0
+    );
+    if (mass <= 0) return;
     const key = `${r.lot_id}__${r.supplier}`;
-    const prev = map.get(key) || 0;
-    map.set(key, prev + Number(r.segment_mass_kg || 0));
+    const prev = loadedMap.get(key) || 0;
+    loadedMap.set(key, prev + mass);
   });
-  const rows = Array.from(map.entries())
+  const loadedRows = Array.from(loadedMap.entries())
+    .filter(([, mass]) => Number(mass) > 0)
     .map(([k, mass]) => {
       const [lotId, supplier] = k.split("__");
       return `<tr><td>${lotId}</td><td>${supplier}</td><td>${mass.toFixed(3)}</td></tr>`;
@@ -203,8 +582,27 @@ function renderUpcomingLots(payload) {
     .join("");
   upcomingLotsWrapEl.innerHTML = `
     <table>
-      <thead><tr><th>Lot</th><th>Supplier</th><th>Total Planned (kg)</th></tr></thead>
-      <tbody>${rows}</tbody>
+      <thead><tr><th>Lot</th><th>Supplier</th><th>Total Loaded (kg)</th></tr></thead>
+      <tbody>${loadedRows}</tbody>
+    </table>
+  `;
+
+  const incoming = payload.incoming_queue || [];
+  const incomingRows = incoming
+    .map((item) => {
+      if (typeof item === "string") {
+        return `<tr><td>${item}</td><td>-</td><td>-</td></tr>`;
+      }
+      const lotId = String(item?.lot_id ?? item?.lot ?? "");
+      const supplier = String(item?.supplier ?? "-");
+      const mass = Number(item?.mass_kg ?? item?.remaining_mass_kg ?? 0);
+      return `<tr><td>${lotId}</td><td>${supplier}</td><td>${mass.toFixed(3)}</td></tr>`;
+    })
+    .join("");
+  incomingLotsWrapEl.innerHTML = `
+    <table>
+      <thead><tr><th>Lot</th><th>Supplier</th><th>Mass (kg)</th></tr></thead>
+      <tbody>${incomingRows || "<tr><td colspan='3'>No incoming lots</td></tr>"}</tbody>
     </table>
   `;
 }
@@ -280,19 +678,23 @@ function renderContributionBars(result) {
     .join("");
 }
 
-function renderCandidateTable(payload) {
+function renderCandidateTable(payload, options = {}) {
+  const targetWrapEl = options.targetWrapEl || candidateTableWrapEl;
+  const sortSelectEl = options.sortSelectEl || candidateSortEl;
+  if (!targetWrapEl) return;
   const candidates = (payload?.top_candidates || []).slice();
-  const sortKey = candidateSortEl?.value || "score";
+  const sortKey = sortSelectEl?.value || "discharged";
+  const mode = options.mode || "studio";
+  const scheduleId = String(options.scheduleId || "").trim();
+  const brewId = String(options.brewId || "").trim();
   if (sortKey === "discharged") {
     candidates.sort(
       (a, b) => Number(b.total_discharged_mass_kg || 0) - Number(a.total_discharged_mass_kg || 0)
     );
-  } else {
-    candidates.sort((a, b) => Number(a.objective_score || 0) - Number(b.objective_score || 0));
   }
 
   if (!candidates.length) {
-    candidateTableWrapEl.innerHTML = "";
+    targetWrapEl.innerHTML = "";
     return;
   }
   const rows = candidates
@@ -300,126 +702,31 @@ function renderCandidateTable(payload) {
       (c, idx) => `
     <tr>
       <td>${idx + 1}</td>
-      <td>${Number(c.objective_score).toFixed(6)}</td>
       <td>${Number(c.total_discharged_mass_kg).toFixed(3)}</td>
       <td>${(c.recommended_discharge || []).map((r) => `${r.silo_id}:${Number(r.discharge_fraction).toFixed(3)}`).join(" | ")}</td>
+      <td>${Object.entries(c.blended_params || {})
+        .map(([k, v]) => `${k}:${Number(v).toFixed(3)}`)
+        .join(" | ")}</td>
+      <td><button class="btn btn-alt candidate-discharge-btn" data-candidate-index="${idx}" data-context-mode="${mode}" data-schedule-id="${scheduleId}" data-brew-id="${brewId}">${
+        mode === "schedule" ? "Discharge Brew" : "Discharge"
+      }</button></td>
     </tr>
   `
     )
     .join("");
-  candidateTableWrapEl.innerHTML = `
+  targetWrapEl.innerHTML = `
     <table>
       <thead>
         <tr>
           <th>Rank</th>
-          <th>Score</th>
           <th>Discharged (kg)</th>
           <th>Recommended Fractions</th>
+          <th>Blended Params</th>
+          <th>Action</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
-  `;
-}
-
-function renderChangeSummary(baselineRun, optimizePayload) {
-  if (!baselineRun || !optimizePayload?.recommended_discharge) {
-    changeSummaryWrapEl.innerHTML = "Run simulation first, then optimize to view changes.";
-    return;
-  }
-  const baseMap = {};
-  for (const [id, v] of Object.entries(baselineRun.per_silo || {})) {
-    baseMap[id] = Number(v.discharged_mass_kg || 0);
-  }
-  const rows = optimizePayload.recommended_discharge.map((r) => {
-    const baseMass = Number(baseMap[r.silo_id] || 0);
-    const frac = Number(r.discharge_fraction || 0);
-    const changedText = `baseline discharged ${baseMass.toFixed(3)}kg -> target fraction ${(frac * 100).toFixed(1)}%`;
-    return `<div class="change-line"><span class="change-key">${r.silo_id}</span><span class="change-value">${changedText}</span></div>`;
-  });
-  rows.push(
-    `<div class="change-line"><span class="change-key">Objective</span><span class="change-value">${Number(
-      optimizePayload.objective_score || 0
-    ).toFixed(6)}</span></div>`
-  );
-  changeSummaryWrapEl.innerHTML = rows.join("");
-}
-
-function renderScenarioCompare(baselineRun, optimizedRun) {
-  if (!baselineRun || !optimizedRun) {
-    scenarioCompareWrapEl.innerHTML = "Run simulation and optimization to compare scenarios.";
-    return;
-  }
-  const base = baselineRun.total_blended_params || {};
-  const opt = optimizedRun.total_blended_params || {};
-  const keys = Array.from(new Set([...Object.keys(base), ...Object.keys(opt)])).sort();
-
-  const baseLines = [];
-  const optLines = [];
-  keys.forEach((k) => {
-    const b = Number(base[k] || 0);
-    const o = Number(opt[k] || 0);
-    const d = o - b;
-    const dClass = d >= 0 ? "compare-delta-pos" : "compare-delta-neg";
-    baseLines.push(
-      `<div class="compare-line"><span class="compare-k">${k}</span><span class="compare-v">${b.toFixed(4)}</span></div>`
-    );
-    optLines.push(
-      `<div class="compare-line"><span class="compare-k">${k}</span><span class="compare-v">${o.toFixed(4)} <span class="${dClass}">(${d >= 0 ? "+" : ""}${d.toFixed(4)})</span></span></div>`
-    );
-  });
-
-  scenarioCompareWrapEl.innerHTML = `
-    <div>
-      <div class="compare-col-title">Baseline Run</div>
-      ${baseLines.join("")}
-    </div>
-    <div>
-      <div class="compare-col-title">Optimized Run</div>
-      ${optLines.join("")}
-    </div>
-  `;
-}
-
-function renderExplainability(optimizePayload) {
-  if (!optimizePayload) {
-    explainabilityWrapEl.innerHTML = "Optimization explainability details will appear after optimize.";
-    return;
-  }
-  const ranges = optimizePayload.param_ranges || {};
-  const lines = [
-    `<div class="explain-line"><span>Objective Method</span><span>${optimizePayload.objective_method || "n/a"}</span></div>`,
-    `<div class="explain-line"><span>Iterations</span><span>${Number(optimizePayload.iterations || 0)}</span></div>`,
-    `<div class="explain-line"><span>Score</span><span>${Number(optimizePayload.objective_score || 0).toFixed(6)}</span></div>`,
-  ];
-  Object.entries(ranges).forEach(([k, v]) => {
-    lines.push(
-      `<div class="explain-line"><span>Scale: ${k}</span><span>${Number(v).toFixed(4)}</span></div>`
-    );
-  });
-  explainabilityWrapEl.innerHTML = lines.join("");
-}
-
-function renderConvergence(optimizePayload) {
-  const top = optimizePayload?.top_candidates || [];
-  if (!top.length) {
-    convergenceWrapEl.innerHTML = "Convergence snapshot will appear after optimize.";
-    return;
-  }
-  const scores = top.map((c) => Number(c.objective_score || 0)).filter(Number.isFinite);
-  if (!scores.length) {
-    convergenceWrapEl.innerHTML = "No convergence data available.";
-    return;
-  }
-  const best = Math.min(...scores);
-  const worst = Math.max(...scores);
-  const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
-  convergenceWrapEl.innerHTML = `
-    <div class="convergence-line"><span>Top Candidates Count</span><span>${scores.length}</span></div>
-    <div class="convergence-line"><span>Best Score</span><span>${best.toFixed(6)}</span></div>
-    <div class="convergence-line"><span>Worst Score</span><span>${worst.toFixed(6)}</span></div>
-    <div class="convergence-line"><span>Mean Score</span><span>${mean.toFixed(6)}</span></div>
-    <div class="convergence-line"><span>Spread</span><span>${(worst - best).toFixed(6)}</span></div>
   `;
 }
 
@@ -430,10 +737,6 @@ async function loadSample() {
   payloadEl.value = JSON.stringify(payload, null, 2);
   renderUpcomingLots(payload);
   candidateTableWrapEl.innerHTML = "";
-  changeSummaryWrapEl.innerHTML = "Run simulation first, then optimize to view changes.";
-  scenarioCompareWrapEl.innerHTML = "Run simulation and optimization to compare scenarios.";
-  explainabilityWrapEl.innerHTML = "Optimization explainability details will appear after optimize.";
-  convergenceWrapEl.innerHTML = "Convergence snapshot will appear after optimize.";
   lastRunResult = null;
   lastOptimizePayload = null;
   validationOutEl.innerHTML = "";
@@ -443,11 +746,32 @@ async function loadSample() {
   printRaw("Sample loaded.");
 }
 
+function scheduleInitialSampleLoad() {
+  const startLoad = () => {
+    loadSample().catch((e) => {
+      printRaw(`Sample load error: ${String(e)}`);
+    });
+  };
+  if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(startLoad, { timeout: 500 });
+    return;
+  }
+  setTimeout(startLoad, 0);
+}
+
 function parsePayload() {
   try {
     return JSON.parse(payloadEl.value);
   } catch (e) {
     throw new Error(`Invalid JSON: ${e.message}`);
+  }
+}
+
+function safePayloadOrEmpty() {
+  try {
+    return parsePayload();
+  } catch (_) {
+    return {};
   }
 }
 
@@ -492,12 +816,17 @@ async function runSimulation() {
     stepResults.setAttribute("aria-busy", "true");
     setStepState(stepRun, statusRun, "is-active", "Running");
     runStatusEl.className = "run-status running";
-    runStatusEl.textContent = "Simulation is running...";
+    runStatusEl.textContent = "Filling silos from incoming queue...";
     const payload = parsePayload();
-    const r = await fetch("/api/run", {
+    const r = await fetch("/api/process/run_simulation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        silos: payload.silos || [],
+        layers: payload.layers || [],
+        suppliers: payload.suppliers || [],
+        incoming_queue: payload.incoming_queue || [],
+      }),
     });
     const data = await r.json();
     if (!r.ok) {
@@ -505,25 +834,56 @@ async function runSimulation() {
       runStatusEl.className = "run-status error";
       runStatusEl.textContent = "Simulation failed. See response details for diagnostics.";
       printRaw(data);
-      return;
+      return { ok: false, data };
     }
-    updateRunKpis(data);
-    renderSummary(data);
-    renderRemainingFocus(data);
-    renderContributionBars(data);
-    renderSiloTable(data);
-    renderStateLedger(data);
-    lastRunResult = data;
+    const summary = data.summary || {};
+    const state = data.state || {};
+    const totalRemaining = Number((summary.silos || []).reduce((a, s) => a + Number(s.remaining_kg || 0), 0));
+    const totalCapacity = Number((summary.silos || []).reduce((a, s) => a + Number(s.capacity_kg || 0), 0));
+    const totalUsed = Number((summary.silos || []).reduce((a, s) => a + Number(s.used_kg || 0), 0));
+
+    kpiDischargedEl.textContent = Number(0).toFixed(3);
+    kpiRemainingEl.textContent = totalRemaining.toFixed(3);
+    renderSiloFillTable(summary);
+    renderUpcomingLots({
+      layers: state.layers || [],
+      incoming_queue: state.incoming_queue || [],
+    });
+    summaryCardsEl.innerHTML = `
+      <div class="card"><div class="card-key">Total Capacity (kg)</div><div class="card-value">${totalCapacity.toFixed(3)}</div></div>
+      <div class="card"><div class="card-key">Current Inventory (kg)</div><div class="card-value">${totalUsed.toFixed(3)}</div></div>
+      <div class="card"><div class="card-key">Total Remaining (kg)</div><div class="card-value">${totalRemaining.toFixed(3)}</div></div>
+      <div class="card"><div class="card-key">Incoming Queue Count</div><div class="card-value">${Number(summary.incoming_queue?.count || 0)}</div></div>
+      <div class="card"><div class="card-key">Incoming Queue Mass (kg)</div><div class="card-value">${Number(summary.incoming_queue?.total_mass_kg || 0).toFixed(3)}</div></div>
+      <div class="card"><div class="card-key">Cumulative Discharged (kg)</div><div class="card-value">${Number(summary.cumulative_discharged_kg || 0).toFixed(3)}</div></div>
+    `;
+    payloadEl.value = JSON.stringify(
+      {
+        ...payload,
+        silos: state.silos || payload.silos || [],
+        layers: state.layers || payload.layers || [],
+        suppliers: state.suppliers || payload.suppliers || [],
+        incoming_queue: state.incoming_queue || payload.incoming_queue || [],
+      },
+      null,
+      2
+    );
+    remainingFocusWrapEl.innerHTML = "";
+    contributionWrapEl.innerHTML = "";
+    stateLedgerWrapEl.innerHTML = "";
+    lastRunResult = null;
     setStepState(stepRun, statusRun, "is-success", "Complete");
     setStepState(stepResults, statusResults, "is-success", "Ready");
     runStatusEl.className = "run-status success";
-    runStatusEl.textContent = "Simulation complete. Review remaining mass and contribution visuals.";
+    runStatusEl.textContent = "Fill complete. No discharge performed.";
     printRaw(data);
+    return { ok: true, data };
   } catch (e) {
     setStepState(stepRun, statusRun, "is-warning", "Run Failed");
     runStatusEl.className = "run-status error";
     runStatusEl.textContent = "Simulation failed before completion.";
     printRaw(String(e));
+    return { ok: false, error: String(e) };
   } finally {
     isRunning = false;
     runBtn.removeAttribute("aria-busy");
@@ -559,15 +919,16 @@ async function optimizeBlend() {
       optimizeBtn.setAttribute("aria-busy", "true");
     }
 
-    const payload = parsePayload();
-    payload.target_params = targetParamsFromUI();
-    payload.iterations = Number(document.getElementById("opt_iterations").value || 120);
-    payload.seed = Number(optSeedEl?.value || 42);
-
-    const r = await fetch("/api/optimize", {
+    const payloadSafe = safePayloadOrEmpty();
+    const r = await fetch("/api/process/optimize", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        target_params: targetParamsFromUI(),
+        iterations: Number(document.getElementById("opt_iterations").value || 120),
+        seed: Number(optSeedEl?.value || 42),
+        config: payloadSafe.config || {},
+      }),
     });
     const data = await r.json();
     if (!r.ok) {
@@ -576,31 +937,18 @@ async function optimizeBlend() {
       if (optimizeBtn) optimizeBtn.disabled = false;
       return;
     }
-    const bestRun = data.best_run || {};
-    updateRunKpis(bestRun);
-    renderSummary(bestRun);
-    renderRemainingFocus(bestRun);
-    renderContributionBars(bestRun);
-    renderSiloTable(bestRun);
-    renderStateLedger(bestRun);
-    renderCandidateTable(data);
-    renderChangeSummary(lastRunResult, data);
-    renderScenarioCompare(lastRunResult, bestRun);
-    renderExplainability(data);
-    renderConvergence(data);
+    // Optimization is advisory only; do not mutate current fill-state visuals.
+    lastOptimizeContext = { mode: "studio", scheduleId: "", brewId: "" };
+    renderCandidateTable(data, lastOptimizeContext);
     lastOptimizePayload = data;
-
-    const score = Number(data.objective_score);
-    kpiObjectiveEl.textContent = Number.isFinite(score) ? score.toFixed(6) : "N/A";
 
     const top = data.top_candidates || [];
     const lines = [];
     lines.push(`Method: ${data.objective_method}`);
-    lines.push(`Best score: ${Number(data.objective_score).toFixed(6)}`);
     lines.push("Top candidates:");
     top.forEach((c, i) => {
       lines.push(
-        `${i + 1}. score=${Number(c.objective_score).toFixed(6)} discharged=${Number(c.total_discharged_mass_kg).toFixed(3)}kg`
+        `${i + 1}. discharged=${Number(c.total_discharged_mass_kg).toFixed(3)}kg`
       );
     });
     lines.push("");
@@ -622,10 +970,343 @@ async function optimizeBlend() {
   }
 }
 
-document.getElementById("loadSampleBtn").addEventListener("click", loadSample);
+async function generateRandomScheduleData() {
+  if (!schedGenerateRandomBtn) return;
+  try {
+    schedGenerateRandomBtn.disabled = true;
+    schedGenerateRandomBtn.textContent = "Generating...";
+    const seed = Number(document.getElementById("sched_seed")?.value || 42);
+    const silosCount = Number(document.getElementById("sched_silos_count")?.value || 3);
+    const lotsCount = Number(document.getElementById("sched_lots_count")?.value || 100);
+    const lotSizeKg = Number(document.getElementById("sched_lot_size_kg")?.value || 2000);
+
+    const r = await fetch("/api/data/generate-random", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        seed,
+        silos_count: silosCount,
+        lots_count: lotsCount,
+        lot_size_kg: lotSizeKg,
+      }),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      if (schedRandomStatusEl) { schedRandomStatusEl.className = "run-status error top-gap"; schedRandomStatusEl.textContent = `Error: ${data?.detail || "Generate random failed."}`; }
+      return;
+    }
+    const payload = data.payload || {};
+    payloadEl.value = JSON.stringify(payload, null, 2);
+    renderUpcomingLots(payload);
+    renderSchedRandomData(payload);
+    candidateTableWrapEl.innerHTML = "";
+    if (schedCandidateTableWrapEl) schedCandidateTableWrapEl.innerHTML = "";
+    lastRunResult = null;
+    lastOptimizePayload = null;
+    validationOutEl.innerHTML = "";
+    validationSummaryEl.textContent = "Random dataset generated. Run validation to check readiness.";
+    setValidationState(false, 0, 0);
+    setStepState(stepInput, statusInput, "is-active", "Loaded");
+  } catch (e) {
+    if (schedRandomStatusEl) { schedRandomStatusEl.className = "run-status error top-gap"; schedRandomStatusEl.textContent = `Generate random failed: ${String(e)}`; }
+  } finally {
+    schedGenerateRandomBtn.disabled = false;
+    schedGenerateRandomBtn.textContent = "Generate Random";
+  }
+}
+
+async function generateSchedulePlan() {
+  if (!schedGenerateScheduleBtn) return;
+  try {
+    schedGenerateScheduleBtn.disabled = true;
+    schedGenerateScheduleBtn.textContent = "Generating...";
+    const scheduleId = String(document.getElementById("sched_schedule_id")?.value || "").trim();
+    const name = String(document.getElementById("sched_name")?.value || "MVP Brew Schedule").trim();
+    const brewsCount = Number(document.getElementById("sched_brews_count")?.value || 5);
+    const seed = Number(document.getElementById("sched_schedule_seed")?.value || 42);
+
+    const r = await fetch("/api/schedules/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schedule_id: scheduleId || null,
+        name,
+        brews_count: brewsCount,
+        seed,
+        target_params: targetParamsFromUI(),
+      }),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      if (schedScheduleStatusEl) { schedScheduleStatusEl.className = "run-status error top-gap"; schedScheduleStatusEl.textContent = `Error: ${data?.detail || "Generate schedule failed."}`; }
+      return;
+    }
+    const resolvedScheduleId = String(data.schedule_id || "");
+    currentScheduleId = resolvedScheduleId;
+    const schedOptScheduleIdEl = document.getElementById("sched_opt_schedule_id");
+    if (schedOptScheduleIdEl) schedOptScheduleIdEl.value = resolvedScheduleId;
+    populateScheduleBrewSelect(data.items || []);
+    seedScheduleBrewState(data.items || []);
+    renderSchedSchedulePlan(data);
+  } catch (e) {
+    if (schedScheduleStatusEl) { schedScheduleStatusEl.className = "run-status error top-gap"; schedScheduleStatusEl.textContent = `Generate schedule failed: ${String(e)}`; }
+    printScheduleDebug(schedOptimizationOutEl, `Generate schedule failed: ${String(e)}`);
+  } finally {
+    schedGenerateScheduleBtn.disabled = false;
+    schedGenerateScheduleBtn.textContent = "Generate Schedule";
+  }
+}
+
+async function runSimulationFromScheduleTab() {
+  if (!schedRunSimulationBtn) return;
+  try {
+    schedRunSimulationBtn.disabled = true;
+    schedRunSimulationBtn.textContent = "Running...";
+    if (schedRunStatusEl) { schedRunStatusEl.className = "run-status running"; schedRunStatusEl.textContent = "Filling silos from incoming queue..."; }
+    const result = await runSimulation();
+    if (result?.ok) {
+      const summary = result?.data?.summary || {};
+      const state = result?.data?.state || {};
+      const totalUsed = (summary.silos || []).reduce((acc, silo) => acc + Number(silo.used_kg || 0), 0);
+      const totalRemaining = (summary.silos || []).reduce((acc, silo) => acc + Number(silo.remaining_kg || 0), 0);
+      scheduleSimulationSnapshot = { at: nowIso(), silos: Number(summary.silos?.length || 0), used_kg: totalUsed, remaining_kg: totalRemaining };
+      Array.from(scheduleBrewState.values()).forEach((row) => {
+        updateScheduleBrewState(row.brew_id, {
+          simulation_status: "complete",
+          simulation_at: scheduleSimulationSnapshot.at,
+          simulation_note: `inventory=${totalUsed.toFixed(1)}kg, remaining=${totalRemaining.toFixed(1)}kg`,
+        });
+      });
+      renderScheduleBrewDetails();
+      renderSchedSimResults(summary, "Fill complete. Silos loaded — ready to optimize.", "success");
+    } else {
+      const errMsg = String(result?.data?.detail || result?.error || "Simulation failed.");
+      renderSchedSimResults({}, errMsg, "error");
+    }
+  } catch (e) {
+    if (schedRunStatusEl) { schedRunStatusEl.className = "run-status error"; schedRunStatusEl.textContent = `Simulation failed: ${String(e)}`; }
+    renderSchedSimResults({}, `Simulation failed: ${String(e)}`, "error");
+  } finally {
+    schedRunSimulationBtn.disabled = false;
+    schedRunSimulationBtn.textContent = "Run Simulation";
+  }
+}
+
+async function optimizeScheduleItemFromTab() {
+  if (!schedOptimizeBtn) return;
+  try {
+    schedOptimizeBtn.disabled = true;
+    schedOptimizeBtn.textContent = "Optimizing...";
+    const scheduleId = String(document.getElementById("sched_opt_schedule_id")?.value || "").trim();
+    const brewId = String(schedOptBrewIdEl?.value || "").trim();
+    const iterations = Number(document.getElementById("sched_opt_iterations")?.value || 120);
+    const seed = Number(document.getElementById("sched_opt_seed")?.value || 42);
+    if (!scheduleId || !brewId) {
+      throw new Error("schedule_id and brew_id are required for optimize schedule.");
+    }
+    const payloadSafe = safePayloadOrEmpty();
+    const r = await fetch(`/api/schedules/${encodeURIComponent(scheduleId)}/items/${encodeURIComponent(brewId)}/optimize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ iterations, seed, config: payloadSafe.config || {} }),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      printScheduleDebug(schedOptimizationOutEl, data);
+      if (schedOptStatusEl) { schedOptStatusEl.textContent = "Failed"; }
+      if (schedStepOptimizeEl) { schedStepOptimizeEl.classList.remove("is-success","is-active","is-warning"); schedStepOptimizeEl.classList.add("is-warning"); }
+      return;
+    }
+    currentScheduleId = scheduleId;
+    lastOptimizeContext = { mode: "schedule", scheduleId, brewId };
+    renderCandidateTable(data, {
+      ...lastOptimizeContext,
+      targetWrapEl: schedCandidateTableWrapEl,
+      sortSelectEl: schedCandidateSortEl,
+    });
+    lastOptimizePayload = data;
+    printScheduleDebug(schedOptimizationOutEl, data);
+    if (schedStepOptimizeEl && schedOptStatusEl) {
+      schedStepOptimizeEl.classList.remove("is-success","is-active","is-warning");
+      schedStepOptimizeEl.classList.add("is-success");
+      schedOptStatusEl.textContent = "Complete";
+    }
+    updateScheduleBrewState(brewId, {
+      optimization_status: "complete",
+      optimization_at: nowIso(),
+      top_candidate_mass_kg: Number(data?.top_candidates?.[0]?.total_discharged_mass_kg || 0),
+      candidate_count: Number((data?.top_candidates || []).length),
+    });
+    renderScheduleBrewDetails();
+    // refresh brew plan status
+    if (currentScheduleId) {
+      refreshScheduleState(currentScheduleId).then(() => {
+        const schedOptScheduleIdEl = document.getElementById("sched_opt_schedule_id");
+        if (schedOptScheduleIdEl?.value) renderSchedSchedulePlan({ schedule_id: schedOptScheduleIdEl.value, name: "", items: Array.from(scheduleBrewState.values()).map(b => ({ brew_id: b.brew_id, brew_index: b.brew_index, target_params: {}, status: b.optimization_status === "complete" ? "optimized" : b.discharge_status === "complete" ? "applied" : "pending" })) });
+      }).catch(() => {});
+    }
+  } catch (e) {
+    printScheduleDebug(schedOptimizationOutEl, `Optimize schedule failed: ${String(e)}`);
+  } finally {
+    schedOptimizeBtn.disabled = false;
+    schedOptimizeBtn.textContent = "Optimize Schedule";
+  }
+}
+
+async function applyCandidateDischarge(candidateIndex) {
+  if (!lastOptimizePayload?.top_candidates?.length) {
+    printRaw("No optimization candidate available.");
+    return;
+  }
+  const candidate = lastOptimizePayload.top_candidates[candidateIndex];
+  const dischargePlan = candidate?.recommended_discharge || [];
+  if (!dischargePlan.length) {
+    printRaw("Selected candidate has no discharge plan.");
+    return;
+  }
+  const payloadSafe = safePayloadOrEmpty();
+  const r = await fetch("/api/process/apply_discharge", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      discharge: dischargePlan,
+      config: payloadSafe.config || {},
+    }),
+  });
+  const data = await r.json();
+  if (!r.ok) {
+    printRaw(data);
+    return;
+  }
+  printRaw(data);
+  if (data.summary) {
+    const summary = data.summary;
+    const totalCapacity = Number((summary.silos || []).reduce((a, s) => a + Number(s.capacity_kg || 0), 0));
+    const totalUsed = Number((summary.silos || []).reduce((a, s) => a + Number(s.used_kg || 0), 0));
+    const totalRemaining = Number((summary.silos || []).reduce((a, s) => a + Number(s.remaining_kg || 0), 0));
+    const dischargedThisEvent = Number(data.predicted_run?.total_discharged_mass_kg || 0);
+
+    kpiDischargedEl.textContent = dischargedThisEvent.toFixed(3);
+    kpiRemainingEl.textContent = totalRemaining.toFixed(3);
+
+    summaryCardsEl.innerHTML = `
+      <div class="card"><div class="card-key">Total Capacity (kg)</div><div class="card-value">${totalCapacity.toFixed(3)}</div></div>
+      <div class="card"><div class="card-key">Current Inventory (kg)</div><div class="card-value">${totalUsed.toFixed(3)}</div></div>
+      <div class="card"><div class="card-key">Total Remaining (kg)</div><div class="card-value">${totalRemaining.toFixed(3)}</div></div>
+      <div class="card"><div class="card-key">Discharged This Event (kg)</div><div class="card-value">${dischargedThisEvent.toFixed(3)}</div></div>
+      <div class="card"><div class="card-key">Cumulative Discharged (kg)</div><div class="card-value">${Number(summary.cumulative_discharged_kg || 0).toFixed(3)}</div></div>
+      <div class="card"><div class="card-key">Incoming Queue Mass (kg)</div><div class="card-value">${Number(summary.incoming_queue?.total_mass_kg || 0).toFixed(3)}</div></div>
+    `;
+
+    renderSiloFillTable(summary);
+    remainingFocusWrapEl.innerHTML = "";
+    contributionWrapEl.innerHTML = "";
+    stateLedgerWrapEl.innerHTML = "";
+    if (data.predicted_run) {
+      lastRunResult = data.predicted_run;
+    }
+    setStepState(stepResults, statusResults, "is-success", "Updated");
+    runStatusEl.className = "run-status success";
+    runStatusEl.textContent = "Discharge applied to silos using selected candidate.";
+  }
+  if (data.state) {
+    const current = safePayloadOrEmpty();
+    payloadEl.value = JSON.stringify(
+      {
+        ...current,
+        silos: data.state.silos || [],
+        layers: data.state.layers || [],
+        suppliers: data.state.suppliers || [],
+        incoming_queue: data.state.incoming_queue || [],
+      },
+      null,
+      2
+    );
+    renderUpcomingLots({
+      layers: data.state.layers || [],
+      incoming_queue: data.state.incoming_queue || [],
+    });
+  }
+}
+
+async function applyScheduleCandidateDischarge(scheduleId, brewId, candidateIndex) {
+  const resolvedScheduleId = String(scheduleId || "").trim();
+  const resolvedBrewId = String(brewId || "").trim();
+  if (!resolvedScheduleId || !resolvedBrewId) {
+    if (schedSimStatusEl) { schedSimStatusEl.className = "run-status error"; schedSimStatusEl.textContent = "Schedule discharge requires schedule_id and brew_id."; }
+    return;
+  }
+  const payloadSafe = safePayloadOrEmpty();
+  const r = await fetch(
+    `/api/schedules/${encodeURIComponent(resolvedScheduleId)}/items/${encodeURIComponent(resolvedBrewId)}/apply`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ candidate_index: Number(candidateIndex || 0), config: payloadSafe.config || {} }),
+    }
+  );
+  const data = await r.json();
+  if (!r.ok) {
+    printScheduleDebug(schedOptimizationOutEl, data);
+    if (schedSimStatusEl) { schedSimStatusEl.className = "run-status error"; schedSimStatusEl.textContent = `Discharge failed: ${data?.detail || "Unknown error"}`; }
+    return;
+  }
+  const result = data?.result || {};
+  const predicted = result?.predicted_run || {};
+  const summary = result?.summary || {};
+  // Render updated simulation results in the schedule Run Simulation card
+  renderSchedSimResults(
+    summary,
+    `Discharge applied for brew ${resolvedBrewId}. Inventory updated.`,
+    "success"
+  );
+  // Render contribution breakdown for discharge
+  renderSchedDischargeContribution(predicted);
+  // Also update studio state so Studio tab stays consistent
+  if (result?.state) {
+    const current = safePayloadOrEmpty();
+    payloadEl.value = JSON.stringify(
+      {
+        ...current,
+        silos: result.state.silos || [],
+        layers: result.state.layers || [],
+        suppliers: result.state.suppliers || [],
+        incoming_queue: result.state.incoming_queue || [],
+      },
+      null,
+      2
+    );
+    renderUpcomingLots({
+      layers: result.state.layers || [],
+      incoming_queue: result.state.incoming_queue || [],
+    });
+  }
+  updateScheduleBrewState(resolvedBrewId, {
+    discharge_status: "complete",
+    discharge_at: nowIso(),
+    discharged_mass_kg: Number(predicted.total_discharged_mass_kg || 0),
+    selected_candidate_index: Number(data?.candidate_index || 0),
+    applied_event_id: data?.applied_event_id ?? null,
+  });
+  renderScheduleBrewDetails();
+  await refreshScheduleState(resolvedScheduleId);
+  if (schedStepRunEl && schedSimStatusEl) {
+    schedStepRunEl.classList.remove("is-success","is-active","is-warning");
+    schedStepRunEl.classList.add("is-success");
+    schedSimStatusEl.textContent = "Updated";
+  }
+  printScheduleDebug(schedOptimizationOutEl, data);
+}
+
 document.getElementById("validateBtn").addEventListener("click", validatePayload);
 document.getElementById("runBtn").addEventListener("click", runSimulation);
 if (optimizeBtn) optimizeBtn.addEventListener("click", optimizeBlend);
+if (tabStudioBtn) tabStudioBtn.addEventListener("click", () => setActiveTab("studio"));
+if (tabScheduleBtn) tabScheduleBtn.addEventListener("click", () => setActiveTab("schedule"));
+if (schedGenerateRandomBtn) schedGenerateRandomBtn.addEventListener("click", generateRandomScheduleData);
+if (schedGenerateScheduleBtn) schedGenerateScheduleBtn.addEventListener("click", generateSchedulePlan);
+if (schedRunSimulationBtn) schedRunSimulationBtn.addEventListener("click", runSimulationFromScheduleTab);
+if (schedOptimizeBtn) schedOptimizeBtn.addEventListener("click", optimizeScheduleItemFromTab);
 if (optPresetEl) {
   optPresetEl.addEventListener("change", () => {
     const mode = optPresetEl.value;
@@ -638,7 +1319,60 @@ if (optPresetEl) {
 }
 if (candidateSortEl) {
   candidateSortEl.addEventListener("change", () => {
-    if (lastOptimizePayload) renderCandidateTable(lastOptimizePayload);
+    if (!lastOptimizePayload) return;
+    if (lastOptimizeContext.mode === "schedule") {
+      renderCandidateTable(lastOptimizePayload, {
+        ...lastOptimizeContext,
+        targetWrapEl: schedCandidateTableWrapEl,
+        sortSelectEl: schedCandidateSortEl,
+      });
+      return;
+    }
+    renderCandidateTable(lastOptimizePayload, {
+      ...lastOptimizeContext,
+      targetWrapEl: candidateTableWrapEl,
+      sortSelectEl: candidateSortEl,
+    });
+  });
+}
+if (schedCandidateSortEl) {
+  schedCandidateSortEl.addEventListener("change", () => {
+    if (!lastOptimizePayload || lastOptimizeContext.mode !== "schedule") return;
+    renderCandidateTable(lastOptimizePayload, {
+      ...lastOptimizeContext,
+      targetWrapEl: schedCandidateTableWrapEl,
+      sortSelectEl: schedCandidateSortEl,
+    });
+  });
+}
+if (candidateTableWrapEl) {
+  candidateTableWrapEl.addEventListener("click", (e) => {
+    const btn = e.target.closest(".candidate-discharge-btn");
+    if (!btn) return;
+    const idx = Number(btn.getAttribute("data-candidate-index") || 0);
+    const contextMode = String(btn.getAttribute("data-context-mode") || "studio");
+    const scheduleId = String(btn.getAttribute("data-schedule-id") || "");
+    const brewId = String(btn.getAttribute("data-brew-id") || "");
+    if (contextMode === "schedule") {
+      applyScheduleCandidateDischarge(scheduleId, brewId, idx);
+      return;
+    }
+    applyCandidateDischarge(idx);
+  });
+}
+if (schedCandidateTableWrapEl) {
+  schedCandidateTableWrapEl.addEventListener("click", (e) => {
+    const btn = e.target.closest(".candidate-discharge-btn");
+    if (!btn) return;
+    const idx = Number(btn.getAttribute("data-candidate-index") || 0);
+    const contextMode = String(btn.getAttribute("data-context-mode") || "schedule");
+    const scheduleId = String(btn.getAttribute("data-schedule-id") || "");
+    const brewId = String(btn.getAttribute("data-brew-id") || "");
+    if (contextMode === "schedule") {
+      applyScheduleCandidateDischarge(scheduleId, brewId, idx);
+      return;
+    }
+    applyCandidateDischarge(idx);
   });
 }
 
@@ -659,11 +1393,8 @@ setStepState(stepResults, statusResults, "", "Pending");
 setStepState(stepOptimize, statusOptimize, "", "Pending");
 runStatusEl.className = "run-status";
 runStatusEl.textContent = "Simulation not started.";
-changeSummaryWrapEl.innerHTML = "Run simulation first, then optimize to view changes.";
-scenarioCompareWrapEl.innerHTML = "Run simulation and optimization to compare scenarios.";
-explainabilityWrapEl.innerHTML = "Optimization explainability details will appear after optimize.";
-convergenceWrapEl.innerHTML = "Convergence snapshot will appear after optimize.";
-kpiObjectiveEl.textContent = "N/A";
 printRaw("UI ready. Load sample, validate inputs, run, then optimize.");
+printScheduleDebug(schedOptimizationOutEl, "Optimization not run yet.");
+renderScheduleBrewDetails();
 
-loadSample();
+scheduleInitialSampleLoad();

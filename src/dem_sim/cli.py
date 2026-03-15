@@ -25,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
     synth_cmd.add_argument("--seed", type=int, default=42)
     synth_cmd.add_argument("--silos", type=int, default=3)
     synth_cmd.add_argument("--suppliers", type=int, default=3)
-    synth_cmd.add_argument("--lots", type=int, default=8)
+    synth_cmd.add_argument("--lots", type=int, default=12)
 
     validate_cmd = sub.add_parser("validate", help="Validate input CSV files.")
     validate_cmd.add_argument("--in", dest="input_dir", default="data/sample", help="Input directory.")

@@ -2,22 +2,30 @@ from __future__ import annotations
 
 from pathlib import Path
 
+LOT_SIZE_KG = 2000
+SILO_SLOT_COUNT = 4
+SILO_COUNT = 3
+SILO_CAPACITY_KG = LOT_SIZE_KG * SILO_SLOT_COUNT
 
 SILOS_CSV = """silo_id,capacity_kg,body_diameter_m,outlet_diameter_m
-S1,4000,3.0,0.20
-S2,4000,3.2,0.20
-S3,4000,3.1,0.21
+S1,8000,3.0,0.20
+S2,8000,3.2,0.20
+S3,8000,3.1,0.21
 """
 
 LAYERS_CSV = """silo_id,layer_index,lot_id,supplier,segment_mass_kg
-S1,1,L1001,BBM,1200
-S1,2,L1002,COFCO,900
-S1,3,L1003,Malteurop,700
-S2,1,L1001,BBM,1400
-S2,2,L1003,Malteurop,1000
-S2,3,L1002,COFCO,600
-S3,1,L1002,COFCO,700
-S3,2,L1003,Malteurop,700
+S1,1,L1001,BBM,2000
+S1,2,L1002,COFCO,2000
+S1,3,L1003,Malteurop,2000
+S1,4,L1004,BBM,2000
+S2,1,L1005,COFCO,2000
+S2,2,L1006,Malteurop,2000
+S2,3,L1007,BBM,2000
+S2,4,L1008,COFCO,2000
+S3,1,L1009,Malteurop,2000
+S3,2,L1010,BBM,2000
+S3,3,L1011,COFCO,2000
+S3,4,L1012,Malteurop,2000
 """
 
 SUPPLIERS_CSV = """supplier,moisture_pct,fine_extract_db_pct,wort_pH,diastatic_power_WK,total_protein_pct,wort_colour_EBC

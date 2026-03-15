@@ -133,3 +133,20 @@ Generated in output directory:
 - Optimize failure rate: `< 3%`
 
 See `docs/ui-ux-m8-handoff.md` for rollout checklist and metric definitions.
+## PostgreSQL Persistence (Optional)
+The API can persist state snapshots, stages, history, and run/optimization results to PostgreSQL.
+
+1. Set database URL before starting server:
+```bash
+set DEM_SIM_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/dem_sim
+```
+
+2. Start server normally. On startup, schema is auto-created if missing.
+
+Tables created automatically:
+- `sim_snapshots` (full state + summary per key event)
+- `sim_stages` (deduped stage timeline)
+- `sim_history` (deduped state history)
+- `sim_results` (`/api/run`, `/api/optimize`, discharge prediction payloads)
+
+If `DEM_SIM_DATABASE_URL` is not set, app behavior remains unchanged (in-memory only).

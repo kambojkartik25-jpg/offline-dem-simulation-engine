@@ -4,6 +4,11 @@ import csv
 import random
 from pathlib import Path
 
+LOT_SIZE_KG = 2000
+SILO_SLOT_COUNT = 4
+SILO_COUNT = 3
+SILO_CAPACITY_KG = LOT_SIZE_KG * SILO_SLOT_COUNT
+
 
 def _write_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
     with path.open("w", newline="", encoding="utf-8") as f:
@@ -17,8 +22,13 @@ def generate_synthetic_dataset(
     seed: int = 42,
     n_silos: int = 3,
     n_suppliers: int = 3,
-    n_lots: int = 8,
+    n_lots: int = 12,
 ) -> Path:
+    if n_silos != SILO_COUNT:
+        raise ValueError(f"Synthetic generator requires exactly {SILO_COUNT} silos.")
+    min_lots = SILO_COUNT * SILO_SLOT_COUNT
+    if n_lots < min_lots:
+        raise ValueError(f"n_lots must be >= {min_lots} for whole-lot block fill.")
     rng = random.Random(seed)
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -42,11 +52,10 @@ def generate_synthetic_dataset(
     silos = []
     for i in range(n_silos):
         body_d = rng.uniform(2.8, 3.4)
-        capacity = rng.uniform(3200.0, 4500.0)
         silos.append(
             {
                 "silo_id": f"S{i+1}",
-                "capacity_kg": round(capacity, 3),
+                "capacity_kg": float(SILO_CAPACITY_KG),
                 "body_diameter_m": round(body_d, 3),
                 "outlet_diameter_m": round(rng.uniform(0.18, 0.23), 3),
             }
@@ -58,30 +67,24 @@ def generate_synthetic_dataset(
             {
                 "lot_id": f"L{1000+i}",
                 "supplier": rng.choice(supplier_names),
-                "mass_kg": rng.uniform(500.0, 1800.0),
+                "mass_kg": float(LOT_SIZE_KG),
             }
         )
 
     layers = []
-    for silo in silos:
-        silo_id = silo["silo_id"]
-        target_mass = rng.uniform(0.65, 0.95) * float(silo["capacity_kg"])
-        remain = target_mass
-        layer_index = 1
-        while remain > 1e-9:
-            lot = rng.choice(lots)
-            piece = min(remain, rng.uniform(200.0, 1100.0))
-            layers.append(
-                {
-                    "silo_id": silo_id,
-                    "layer_index": layer_index,
-                    "lot_id": lot["lot_id"],
-                    "supplier": lot["supplier"],
-                    "segment_mass_kg": round(piece, 3),
-                }
-            )
-            remain -= piece
-            layer_index += 1
+    block_lots = lots[:min_lots]
+    for i, lot in enumerate(block_lots):
+        silo_idx = i // SILO_SLOT_COUNT
+        layer_idx = (i % SILO_SLOT_COUNT) + 1
+        layers.append(
+            {
+                "silo_id": f"S{silo_idx + 1}",
+                "layer_index": layer_idx,
+                "lot_id": lot["lot_id"],
+                "supplier": lot["supplier"],
+                "segment_mass_kg": float(LOT_SIZE_KG),
+            }
+        )
 
     discharge = []
     for silo in silos:

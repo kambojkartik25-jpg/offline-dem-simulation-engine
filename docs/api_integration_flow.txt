@@ -1,0 +1,230 @@
+DEM Simulation API Integration Flow (for a new external UI)
+Date: 2026-03-10
+
+============================================================
+1) START AND ACCESS THE API/UI (PORT 8000)
+============================================================
+
+Start services with Podman:
+
+  podman compose up -d --build
+
+Verify API is healthy:
+
+  curl http://127.0.0.1:8000/health
+
+Expected:
+
+  {"status":"ok"}
+
+Open in browser:
+- API Base URL: http://127.0.0.1:8000
+- Swagger Docs: http://127.0.0.1:8000/docs
+- Existing UI:   http://127.0.0.1:8000/
+- UI static path:http://127.0.0.1:8000/ui/index.html
+
+
+============================================================
+2) HOW TO CONNECT A NEW UI REPO TO THIS API
+============================================================
+
+Set your API base URL in new UI project:
+
+  API_BASE_URL=http://127.0.0.1:8000
+
+Recommended frontend setup:
+- Use a dev proxy so your UI calls /api/* and proxy forwards to 127.0.0.1:8000.
+- This avoids browser CORS issues in local dev.
+
+If not using proxy:
+- You need CORS enabled on backend for your UI origin.
+
+
+============================================================
+3) RECOMMENDED END-TO-END UI FLOW
+============================================================
+
+Step A: Generate Random State
+Endpoint:
+  POST /api/data/generate-random
+
+Request payload:
+{
+  "seed": 42,
+  "silos_count": 3,
+  "lots_count": 100,
+  "lot_size_kg": 2000
+}
+
+Use response:
+- response.payload -> your current working dataset in UI
+- response.summary -> KPI summaries
+
+
+Step B: Validate Inputs (optional but recommended)
+Endpoint:
+  POST /api/validate
+
+Request payload shape:
+{
+  "silos": [],
+  "layers": [],
+  "suppliers": [],
+  "discharge": [],
+  "config": {}
+}
+
+Notes:
+- Send your current in-memory arrays for silos/layers/suppliers.
+- Keep discharge empty if you are not applying discharge at this stage.
+
+
+Step C: Run Fill Simulation
+Endpoint:
+  POST /api/process/run_simulation
+
+Request payload shape:
+{
+  "silos": [],
+  "layers": [],
+  "suppliers": [],
+  "incoming_queue": []
+}
+
+Use response:
+- response.state    -> updated fill state
+- response.summary  -> updated metrics/KPIs
+
+
+Step D: Generate Brew Schedule
+Endpoint:
+  POST /api/schedules/generate
+
+Request payload:
+{
+  "schedule_id": null,
+  "name": "MVP Brew Schedule",
+  "brews_count": 5,
+  "seed": 42,
+  "target_params": {
+    "moisture_pct": 4.5,
+    "fine_extract_db_pct": 81.8,
+    "wort_pH": 5.9,
+    "diastatic_power_WK": 330,
+    "total_protein_pct": 10.7,
+    "wort_colour_EBC": 4.5
+  }
+}
+
+Use response:
+- response.schedule_id -> save this in UI state
+- response.items[]     -> each has brew_id; populate brew selector/dropdown
+
+
+Step E: Optimize One Brew in Schedule
+Endpoint:
+  POST /api/schedules/{schedule_id}/items/{brew_id}/optimize
+
+Request payload:
+{
+  "iterations": 120,
+  "seed": 42,
+  "config": {}
+}
+
+Use response:
+- response.top_candidates[]
+  - candidate.recommended_discharge[] for suggested plan
+
+
+Step F: Apply Candidate to State (optional execution step)
+Endpoint:
+  POST /api/schedules/{schedule_id}/items/{brew_id}/apply
+
+Request payload:
+{
+  "candidate_index": 0,
+  "config": {}
+}
+
+Use response:
+- response.result.state
+- response.result.summary
+
+Refresh your UI with these updated values after apply.
+
+
+============================================================
+4) ALTERNATE (NO SCHEDULE) OPTIMIZATION FLOW
+============================================================
+
+If your UI does not use schedule endpoints:
+
+1) Optimize directly:
+   POST /api/process/optimize
+
+   Payload:
+   {
+     "target_params": {
+       "moisture_pct": 4.5,
+       "fine_extract_db_pct": 81.8,
+       "wort_pH": 5.9,
+       "diastatic_power_WK": 330,
+       "total_protein_pct": 10.7,
+       "wort_colour_EBC": 4.5
+     },
+     "iterations": 120,
+     "seed": 42,
+     "config": {}
+   }
+
+2) Apply chosen discharge plan:
+   POST /api/process/apply_discharge
+
+   Payload:
+   {
+     "discharge": [
+       {"silo_id": "SILO01", "discharge_fraction": 0.33},
+       {"silo_id": "SILO02", "discharge_fraction": 0.33},
+       {"silo_id": "SILO03", "discharge_fraction": 0.34}
+     ],
+     "config": {}
+   }
+
+
+============================================================
+5) MINIMAL API CHECKLIST FOR NEW UI TEAM
+============================================================
+
+- GET  /health
+- GET  /api/sample
+- POST /api/data/generate-random
+- POST /api/validate
+- POST /api/process/run_simulation
+- POST /api/schedules/generate
+- POST /api/schedules/{schedule_id}
+- POST /api/schedules/{schedule_id}/items/{brew_id}/optimize
+- POST /api/schedules/{schedule_id}/items/{brew_id}/apply
+- POST /api/process/optimize (alternate path)
+- POST /api/process/apply_discharge (alternate path)
+
+
+============================================================
+6) PRACTICAL FRONTEND STATE TIPS
+============================================================
+
+Maintain these UI state keys:
+- currentPayload
+- simulationState
+- simulationSummary
+- scheduleId
+- selectedBrewId
+- topCandidates
+
+After every mutation endpoint call (run/apply), overwrite local state from API response.
+Do not compute authoritative silo state in frontend; backend is source of truth.
+
+
+============================================================
+END
+============================================================

@@ -101,7 +101,7 @@ p {
   z-index: 20;
   margin-top: 14px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -112,6 +112,40 @@ p {
   border-radius: 12px;
   padding: 10px 12px;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
+}
+
+.tab-nav {
+  margin-top: 14px;
+  display: inline-flex;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px;
+}
+
+.tab-btn {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.tab-btn.is-active {
+  border-color: var(--line);
+  background: #fff;
+  color: var(--ink);
+}
+
+.tab-panel {
+  margin-top: 8px;
+}
+
+.tab-panel:not(.is-active) {
+  display: none;
 }
 
 .kpi-key {
@@ -147,6 +181,11 @@ p {
   border-radius: 16px;
   padding: 14px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+#stepInput {
+  max-height: calc(100vh - 170px);
+  overflow-y: auto;
 }
 
 .step-head {
