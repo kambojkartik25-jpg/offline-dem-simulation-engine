@@ -772,6 +772,75 @@ FIXED_DISCHARGE_TARGET_KG = 12000.0
 FIXED_DISCHARGE_TOL_KG = 1e-3
 
 
+def _state_available_mass_total(state: dict[str, Any]) -> float:
+    return float(
+        sum(
+            float(row.get("remaining_mass_kg", row.get("segment_mass_kg", 0.0)) or 0.0)
+            for row in (state.get("layers", []) or [])
+        )
+    )
+
+
+def _ensure_mass_ready_for_target(
+    *, target_kg: float, max_fill_cycles: int = 3
+) -> dict[str, Any]:
+    """Try fill-only simulation cycles until target mass is available or no progress is possible."""
+    fill_runs = 0
+    states_touched = 0
+    for _ in range(max_fill_cycles):
+        state = get_state()
+        available_total = _state_available_mass_total(state)
+        if available_total + 1e-12 >= target_kg:
+            break
+        queue_total = float(
+            sum(float(r.get("mass_kg", 0.0) or 0.0) for r in (state.get("incoming_queue", []) or []))
+        )
+        if queue_total <= 1e-12:
+            break
+        before_available = available_total
+        out = run_fill_only_simulation()
+        fill_runs += 1
+        states_touched += 1
+        after_state = out.get("state", {})
+        after_summary = out.get("summary", {})
+        try:
+            _sync_incoming_queue_to_db(after_state.get("incoming_queue", []))
+        except Exception as e:
+            print(f"[schedule_optimize_fill_gate] incoming_queue sync failed: {e}")
+        sim_event_id = _write_sim_event(
+            event_type="run_simulation_fill_only",
+            action="run_simulation_fill_only",
+            state_before=state,
+            state_after=after_state,
+            total_discharged_mass_kg=0.0,
+            total_remaining_mass_kg=None,
+            incoming_queue_count=int(after_summary.get("incoming_queue", {}).get("count", 0)),
+            incoming_queue_mass_kg=float(after_summary.get("incoming_queue", {}).get("total_mass_kg", 0.0)),
+            meta={"source": "schedule_optimize_prefill"},
+        )
+        try:
+            _sync_layers_to_db(
+                after_state,
+                event_type="run_simulation_fill_only",
+                sim_event_id=sim_event_id,
+            )
+        except Exception as e:
+            print(f"[schedule_optimize_fill_gate] layers sync failed: {e}")
+        after_available = _state_available_mass_total(after_state)
+        if after_available <= before_available + 1e-9:
+            break
+
+    final_state = get_state()
+    return {
+        "fill_runs": fill_runs,
+        "states_touched": states_touched,
+        "available_total_kg": _state_available_mass_total(final_state),
+        "incoming_queue_mass_kg": float(
+            sum(float(r.get("mass_kg", 0.0) or 0.0) for r in (final_state.get("incoming_queue", []) or []))
+        ),
+    }
+
+
 def _score_blend(
     actual: dict[str, float], target: dict[str, float], param_ranges: dict[str, float]
 ) -> float:
@@ -1228,6 +1297,17 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=404, detail="schedule item not found")
         target_params = rows[0].get("target_params", {}) or {}
         _ensure_state_initialized()
+        prefill = _ensure_mass_ready_for_target(target_kg=FIXED_DISCHARGE_TARGET_KG)
+        if float(prefill.get("available_total_kg", 0.0)) + 1e-12 < FIXED_DISCHARGE_TARGET_KG:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Insufficient available mass for brew {brew_id} after pre-fill attempts. "
+                    f"Required: {FIXED_DISCHARGE_TARGET_KG:.3f} kg, "
+                    f"available: {float(prefill.get('available_total_kg', 0.0)):.3f} kg, "
+                    f"incoming_queue: {float(prefill.get('incoming_queue_mass_kg', 0.0)):.3f} kg."
+                ),
+            )
         state = get_state()
         opt_req = OptimizeRequest(
             silos=state.get("silos", []),
@@ -1240,6 +1320,7 @@ def create_app() -> FastAPI:
             seed=req.seed,
         )
         out = optimize(opt_req)
+        out["prefill"] = prefill
         execute(
             """
             UPDATE brew_schedule_items
@@ -1485,6 +1566,7 @@ def create_app() -> FastAPI:
             "objective_method": "normalized_weighted_l2_hybrid_search",
             "param_ranges": DEFAULT_PARAM_RANGES,
             "top_candidates": top_candidates,
+            "physics_corrections_applied": list(best_result.get("physics_corrections_applied", []) or []),
             "config_used": {
                 "rho_bulk_kg_m3": float(cfg.rho_bulk_kg_m3),
                 "grain_diameter_m": float(cfg.grain_diameter_m),
@@ -1494,6 +1576,11 @@ def create_app() -> FastAPI:
                 "sigma_m": float(cfg.sigma_m),
                 "steps": int(cfg.steps),
                 "auto_adjust": bool(cfg.auto_adjust),
+                "silo_radius_m": float(cfg.silo_radius_m),
+                "mu_wall": float(cfg.mu_wall),
+                "use_janssen": bool(cfg.use_janssen),
+                "use_moisture_correction": bool(cfg.use_moisture_correction),
+                "use_layer_composition": bool(cfg.use_layer_composition),
             },
         }
         out["elapsed_ms"] = round((time.perf_counter() - started_at) * 1000.0, 2)
