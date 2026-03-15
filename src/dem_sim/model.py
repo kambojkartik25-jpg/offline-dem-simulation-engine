@@ -39,9 +39,8 @@ def normal_cdf(x: float) -> float:
     return 0.5 * (1.0 + erf(x / sqrt(2.0)))
 
 
-def _normal_cdf_array(x: np.ndarray) -> np.ndarray:
-    # Vectorized erf approximation (Abramowitz-Stegun 7.1.26) for fast hot-loop CDF.
-    z = x / sqrt(2.0)
+def _erf_approx_array(z: np.ndarray) -> np.ndarray:
+    """Vectorized erf approximation (Abramowitz-Stegun 7.1.26)."""
     sign = np.sign(z)
     a = np.abs(z)
     t = 1.0 / (1.0 + 0.3275911 * a)
@@ -50,8 +49,33 @@ def _normal_cdf_array(x: np.ndarray) -> np.ndarray:
         * t
         + 0.254829592
     ) * t
-    erf_approx = sign * (1.0 - poly * np.exp(-(a * a)))
-    return 0.5 * (1.0 + erf_approx)
+    return sign * (1.0 - poly * np.exp(-(a * a)))
+
+
+def _normal_cdf_array(x: np.ndarray) -> np.ndarray:
+    """Vectorized normal CDF using the shared erf approximation."""
+    return 0.5 * (1.0 + _erf_approx_array(x / sqrt(2.0)))
+
+
+def _skew_tilt(
+    z_centers: np.ndarray,
+    z_front: float,
+    sigma: float,
+    alpha_skew: float,
+) -> np.ndarray:
+    """Exponential asymmetric tilt weights for the skew-normal mixing kernel.
+
+    Applied as a multiplicative weight on top of the symmetric Normal CDF
+    probability, then re-normalized. Always produces positive weights.
+
+    alpha_skew < 0: increases weight for layers *below* the discharge front,
+                    modelling enhanced mixing in the hopper convergence zone.
+    alpha_skew > 0: increases weight for layers *above* the discharge front.
+    alpha_skew = 0: uniform weights of 1.0 (no-op).
+
+    Formula: tilt_i = exp(alpha_skew * (z_center_i - z_front) / sigma)
+    """
+    return np.exp(alpha_skew * (z_centers - z_front) / sigma)
 
 
 def _build_silo_map(df_silos: pd.DataFrame) -> Dict[str, Silo]:
@@ -152,7 +176,14 @@ def layer_probabilities(
     sigma_m: float,
     intervals_df: pd.DataFrame,
     total_height_m: float,
+    skew_alpha: float = 0.0,
 ) -> pd.Series:
+    """Compute per-layer discharge probability at a given front position.
+
+    skew_alpha: shape parameter for the asymmetric mixing kernel.
+        0.0  → symmetric Normal CDF (original behaviour).
+        < 0  → biases mass toward layers below the discharge front (hopper zone).
+    """
     if sigma_m <= 0:
         raise ValueError("sigma_m must be > 0.")
 
@@ -169,6 +200,13 @@ def layer_probabilities(
         - z0.map(lambda v: normal_cdf((v - z_front_m) / sigma_m))
     ) / denom
     p_raw = p_raw.clip(lower=0.0)
+
+    # Feature 3: apply exponential asymmetric tilt when skew_alpha != 0.
+    if skew_alpha != 0.0:
+        z_centers = ((z0 + z1) / 2.0).to_numpy(dtype=float)
+        tilt = _skew_tilt(z_centers, z_front_m, sigma_m, skew_alpha)
+        p_raw = pd.Series(p_raw.to_numpy(dtype=float) * tilt, index=p_raw.index)
+
     s = float(p_raw.sum())
     return (p_raw / s) if s > 0 else pd.Series(0.0, index=intervals_df.index)
 
@@ -226,7 +264,22 @@ def _simulate_for_sigma(
     material: Material,
     sigma_m: float,
     steps: int,
+    moisture_beta: float = 0.0,
+    sigma_alpha: float = 0.0,
+    skew_alpha: float = 0.0,
+    layer_moisture: np.ndarray | None = None,
 ) -> pd.DataFrame:
+    """Time-stepped silo discharge simulation.
+
+    Physics improvements (all default to off at 0.0):
+      moisture_beta : cohesion correction — Q_eff = Q * exp(-beta * moisture_pct).
+                      Uses per-layer moisture_pct weighted by current discharge
+                      probability. Requires layer_moisture array.
+      sigma_alpha   : sigma height-scaling — sigma(t) = sigma_0 * (h_remaining /
+                      h_initial) ** alpha. Mixing narrows as silo empties.
+      skew_alpha    : asymmetric mixing kernel — negative values bias discharge
+                      mass toward layers below the front (hopper convergence zone).
+    """
     if steps <= 0:
         raise ValueError("steps must be > 0.")
     if m_dot_kg_s <= 0:
@@ -251,19 +304,49 @@ def _simulate_for_sigma(
         t_mid = (i + 0.5) * dt
         m_removed = min(discharge_mass_kg, m_dot_kg_s * t_mid)
         z_front = m_removed / (material.rho_bulk_kg_m3 * area)
-        denom = normal_cdf((total_height_m - z_front) / sigma_m) - normal_cdf(
-            (0.0 - z_front) / sigma_m
+
+        # Feature 2: sigma scales down as remaining height shrinks.
+        # sigma_eff = sigma_0 * (h_remaining / h_initial) ** alpha
+        # At alpha=0.0 this is a no-op (1.0 ** 0 = 1.0).
+        if sigma_alpha != 0.0 and total_height_m > 0:
+            h_remaining = max(total_height_m - z_front, 0.0)
+            sigma_eff = sigma_m * max(
+                (h_remaining / total_height_m) ** sigma_alpha, 1e-9
+            )
+        else:
+            sigma_eff = sigma_m
+
+        denom = normal_cdf((total_height_m - z_front) / sigma_eff) - normal_cdf(
+            (0.0 - z_front) / sigma_eff
         )
         if denom <= 1e-15:
             continue
         p_raw = (
-            _normal_cdf_array((z1 - z_front) / sigma_m)
-            - _normal_cdf_array((z0 - z_front) / sigma_m)
+            _normal_cdf_array((z1 - z_front) / sigma_eff)
+            - _normal_cdf_array((z0 - z_front) / sigma_eff)
         ) / denom
         p_raw = np.clip(p_raw, a_min=0.0, a_max=None)
+
+        # Feature 3: apply exponential asymmetric tilt (skew-normal mixing kernel).
+        if skew_alpha != 0.0:
+            z_centers = (z0 + z1) / 2.0
+            p_raw = p_raw * _skew_tilt(z_centers, z_front, sigma_eff, skew_alpha)
+
         s = float(p_raw.sum())
-        if s > 0:
-            discharged += dm * (p_raw / s)
+        if s <= 0:
+            continue
+        p_norm = p_raw / s
+
+        # Feature 1: moisture-dependent cohesion reduces effective dm per step.
+        # dm_eff = dm * exp(-beta * moisture_eff)
+        # At beta=0.0 this is dm * exp(0) = dm (no-op).
+        if moisture_beta != 0.0 and layer_moisture is not None:
+            moisture_eff = float(np.dot(p_norm, layer_moisture))
+            dm_eff = dm * np.exp(-moisture_beta * moisture_eff)
+        else:
+            dm_eff = dm
+
+        discharged += dm_eff * p_norm
 
     total_sim = float(discharged.sum())
     if total_sim > 0:
@@ -282,6 +365,10 @@ def estimate_discharge_contrib_for_silo(
     steps: int = 2000,
     auto_adjust: bool = False,
     min_nonzero_mass_kg: float = 1e-3,
+    moisture_beta: float = 0.0,
+    sigma_alpha: float = 0.0,
+    skew_alpha: float = 0.0,
+    df_suppliers: pd.DataFrame | None = None,
 ) -> Dict[str, object]:
     if sigma_m <= 0:
         raise ValueError("sigma_m must be > 0.")
@@ -300,6 +387,20 @@ def estimate_discharge_contrib_for_silo(
     m_dot = beverloo_mass_flow_rate_kg_s(silo, material, bev)
     discharge_time_s = discharge_mass_kg / m_dot if m_dot > 0 else 0.0
 
+    # Build per-segment moisture array for Feature 1.
+    # moisture_pct values are percentages (e.g. 4.2 means 4.2%).
+    layer_moisture_arr: np.ndarray | None = None
+    if moisture_beta != 0.0 and df_suppliers is not None and "moisture_pct" in df_suppliers.columns:
+        moisture_map = (
+            df_suppliers.set_index("supplier")["moisture_pct"]
+            .astype(float)
+            .to_dict()
+        )
+        layer_moisture_arr = np.array(
+            [float(moisture_map.get(str(sup), 0.0)) for sup in intervals_df["supplier"]],
+            dtype=float,
+        )
+
     used_sigma_m = sigma_m
     seg_contrib = _simulate_for_sigma(
         silo=silo,
@@ -310,6 +411,10 @@ def estimate_discharge_contrib_for_silo(
         material=material,
         sigma_m=used_sigma_m,
         steps=steps,
+        moisture_beta=moisture_beta,
+        sigma_alpha=sigma_alpha,
+        skew_alpha=skew_alpha,
+        layer_moisture=layer_moisture_arr,
     )
 
     if auto_adjust:
@@ -331,6 +436,10 @@ def estimate_discharge_contrib_for_silo(
                 material=material,
                 sigma_m=used_sigma_m,
                 steps=steps,
+                moisture_beta=moisture_beta,
+                sigma_alpha=sigma_alpha,
+                skew_alpha=skew_alpha,
+                layer_moisture=layer_moisture_arr,
             )
 
     lot_contrib = (
@@ -403,6 +512,9 @@ def run_multi_silo_blend(
     sigma_m: float,
     steps: int = 2000,
     auto_adjust: bool = False,
+    moisture_beta: float = 0.0,
+    sigma_alpha: float = 0.0,
+    skew_alpha: float = 0.0,
 ) -> Dict[str, object]:
     if sigma_m <= 0:
         raise ValueError("sigma_m must be > 0.")
@@ -442,6 +554,10 @@ def run_multi_silo_blend(
             sigma_m=sigma_m,
             steps=steps,
             auto_adjust=auto_adjust,
+            moisture_beta=moisture_beta,
+            sigma_alpha=sigma_alpha,
+            skew_alpha=skew_alpha,
+            df_suppliers=df_suppliers,
         )
         res["blended_params_per_silo"] = blend_params_from_contrib(
             res["df_lot_contrib"], df_suppliers

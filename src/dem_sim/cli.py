@@ -41,6 +41,22 @@ def build_parser() -> argparse.ArgumentParser:
     run_cmd.add_argument("--sigma-m", type=float, default=0.12)
     run_cmd.add_argument("--steps", type=int, default=2000)
     run_cmd.add_argument("--auto-adjust", action="store_true", default=False)
+    run_cmd.add_argument(
+        "--moisture-beta", type=float, default=0.0,
+        help="Cohesion correction exponent (0=disabled). Suggested brewery value: 0.05. "
+             "Applies exp(-beta * moisture_pct) to the effective flow rate per timestep.",
+    )
+    run_cmd.add_argument(
+        "--sigma-alpha", type=float, default=0.0,
+        help="Sigma height-scaling exponent (0=disabled). Suggested brewery value: 0.4. "
+             "Mixing width narrows as silo empties: sigma(t) = sigma_0 * (h_rem/h_init)^alpha.",
+    )
+    run_cmd.add_argument(
+        "--skew-alpha", type=float, default=0.0,
+        help="Asymmetric mixing kernel shape parameter (0=symmetric Normal). "
+             "Suggested brewery value: -2.0. Negative values bias discharge mass toward "
+             "layers below the front, modelling hopper convergence zone mixing.",
+    )
 
     return parser
 
@@ -100,6 +116,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
         sigma_m=args.sigma_m,
         steps=args.steps,
         auto_adjust=args.auto_adjust,
+        moisture_beta=args.moisture_beta,
+        sigma_alpha=args.sigma_alpha,
+        skew_alpha=args.skew_alpha,
     )
     result = run_blend(inputs, cfg)
     out_dir = ensure_output_dir(args.output_dir)

@@ -25,3 +25,9 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "lifecycle_db: lifecycle DB tests — require DEM_SIM_TEST_DATABASE_URL (skipped when absent)",
+]

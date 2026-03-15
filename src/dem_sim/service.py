@@ -16,6 +16,10 @@ class RunConfig:
     sigma_m: float = 0.12
     steps: int = 2000
     auto_adjust: bool = True
+    # Physics improvements for brewery malt silos (0.0 = disabled / original behaviour)
+    moisture_beta: float = 0.0   # cohesion correction: Q_eff = Q * exp(-beta * moisture_pct)
+    sigma_alpha: float = 0.0     # sigma height-scaling: sigma(t) = sigma_0 * (h_rem/h_init)^alpha
+    skew_alpha: float = 0.0      # asymmetric kernel: negative biases toward sub-front layers
 
 
 def run_blend(inputs: Dict[str, Any], cfg: RunConfig) -> Dict[str, Any]:
@@ -38,4 +42,7 @@ def run_blend(inputs: Dict[str, Any], cfg: RunConfig) -> Dict[str, Any]:
         sigma_m=cfg.sigma_m,
         steps=cfg.steps,
         auto_adjust=cfg.auto_adjust,
+        moisture_beta=cfg.moisture_beta,
+        sigma_alpha=cfg.sigma_alpha,
+        skew_alpha=cfg.skew_alpha,
     )

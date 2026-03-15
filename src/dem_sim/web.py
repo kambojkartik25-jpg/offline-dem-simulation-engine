@@ -399,6 +399,9 @@ def _generate_random_payload(
             "sigma_m": 0.12,
             "steps": 2000,
             "auto_adjust": True,
+            "moisture_beta": 0.0,
+            "sigma_alpha": 0.0,
+            "skew_alpha": 0.0,
         },
     }
 
@@ -572,6 +575,9 @@ def _sample_payload() -> dict[str, Any]:
                     "sigma_m": 0.12,
                     "steps": 2000,
                     "auto_adjust": True,
+                    "moisture_beta": 0.0,
+                    "sigma_alpha": 0.0,
+                    "skew_alpha": 0.0,
                 },
             }
     except Exception:
@@ -661,6 +667,9 @@ def _sample_payload() -> dict[str, Any]:
                     "sigma_m": 0.12,
                     "steps": 2000,
                     "auto_adjust": True,
+                    "moisture_beta": 0.0,
+                    "sigma_alpha": 0.0,
+                    "skew_alpha": 0.0,
                 },
             }
     except Exception:
@@ -698,6 +707,9 @@ def _sample_payload() -> dict[str, Any]:
             "sigma_m": 0.12,
             "steps": 2000,
             "auto_adjust": True,
+            "moisture_beta": 0.0,
+            "sigma_alpha": 0.0,
+            "skew_alpha": 0.0,
         },
     }
 
@@ -723,7 +735,10 @@ def _load_incoming_queue_from_db() -> list[dict[str, Any]]:
 
 
 def _ensure_state_initialized() -> None:
-    # Always reload from DB/sample source per request to avoid stale in-memory state.
+    # Only bootstrap from DB/sample when state has not yet been set (silos list is empty).
+    # This preserves explicitly set state (e.g. from tests or prior API calls).
+    if get_state()["silos"]:
+        return
     payload = _sample_payload()
     set_state(
         silos=payload["silos"],

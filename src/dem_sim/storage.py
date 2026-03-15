@@ -69,7 +69,13 @@ class PostgresStorage:
     dsn: str
 
     def __post_init__(self) -> None:
-        self._engine = create_engine(self.dsn, future=True)
+        # SQLAlchemy needs the psycopg3 dialect specifier; normalise bare postgresql:// URLs.
+        dsn = self.dsn
+        if dsn.startswith("postgresql://") or dsn.startswith("postgres://"):
+            dsn = dsn.replace("postgresql://", "postgresql+psycopg://", 1).replace(
+                "postgres://", "postgresql+psycopg://", 1
+            )
+        self._engine = create_engine(dsn, future=True)
         self._session_factory = sessionmaker(self._engine, future=True, expire_on_commit=False)
 
     def ensure_schema(self) -> None:
