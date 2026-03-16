@@ -83,6 +83,87 @@ def terminal_summary(result: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# Supplier COA reference bounds (EBC Analytica + ASBC Methods of Analysis)
+# ---------------------------------------------------------------------------
+
+# Hard physical limits — values outside these are scientifically impossible
+# for commercial base malt and indicate a data entry error or unit mismatch.
+SUPPLIER_COA_SCIENCE_BOUNDS: dict[str, tuple[float, float]] = {
+    "moisture_pct":        (3.5,  6.5),   # EBC 4.2: kiln floor min / storage max
+    "fine_extract_db_pct": (78.0, 86.0),  # EBC 4.5.1: minimum conversion / 2-row ceiling
+    "wort_pH":             (5.6,  6.2),   # ASBC Malt-6: buffering min / under-modification max
+    "diastatic_power_WK":  (150.0, 550.0),# EBC 4.12: self-conversion min / specialty strain max
+    "total_protein_pct":   (8.5,  13.5),  # EBC 4.3.1: nitrogen-deficient min / haze-risk max
+    "wort_colour_EBC":     (2.5,  12.0),  # EBC 8.5: any-kilned-malt floor / pre-crystal ceiling
+}
+
+# Advisory typical contract range — unusual but physically possible; brewer should review.
+SUPPLIER_COA_TYPICAL_RANGE: dict[str, tuple[float, float]] = {
+    "moisture_pct":        (3.8,  5.5),
+    "fine_extract_db_pct": (80.0, 84.5),
+    "wort_pH":             (5.7,  6.1),
+    "diastatic_power_WK":  (200.0, 450.0),
+    "total_protein_pct":   (9.5,  12.5),
+    "wort_colour_EBC":     (3.0,  8.0),
+}
+
+# Human-readable parameter labels for error messages.
+_COA_PARAM_LABELS: dict[str, str] = {
+    "moisture_pct":        "Moisture %",
+    "fine_extract_db_pct": "Fine Extract db%",
+    "wort_pH":             "Wort pH",
+    "diastatic_power_WK":  "Diastatic Power (WK)",
+    "total_protein_pct":   "Total Protein %",
+    "wort_colour_EBC":     "Wort Colour (EBC)",
+}
+
+
+def validate_supplier_coa(
+    suppliers_df: pd.DataFrame,
+) -> tuple[list[str], list[str]]:
+    """Validate supplier COA parameters against science bounds and typical contract ranges.
+
+    Returns
+    -------
+    errors : list[str]
+        Values outside physical science bounds (EBC/ASBC). These block the request.
+    warnings : list[str]
+        Values inside science bounds but outside the typical contract range. These
+        are advisory — simulation runs, but the brewer should review.
+    """
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    if suppliers_df.empty:
+        return errors, warnings
+
+    for _, row in suppliers_df.iterrows():
+        supplier = str(row.get("supplier", "unknown"))
+        for param, (lo, hi) in SUPPLIER_COA_SCIENCE_BOUNDS.items():
+            if param not in row.index or pd.isna(row[param]):
+                continue
+            val = float(row[param])
+            label = _COA_PARAM_LABELS.get(param, param)
+            if val < lo or val > hi:
+                errors.append(
+                    f"suppliers.csv COA error: supplier '{supplier}' — "
+                    f"{label} value {val:.4g} is outside physical science bounds "
+                    f"[{lo}–{hi}] (EBC/ASBC reference). Check units or data entry."
+                )
+            elif param in SUPPLIER_COA_TYPICAL_RANGE:
+                warn_lo, warn_hi = SUPPLIER_COA_TYPICAL_RANGE[param]
+                if val < warn_lo or val > warn_hi:
+                    warnings.append(
+                        f"suppliers.csv COA warning: supplier '{supplier}' — "
+                        f"{label} value {val:.4g} is outside typical contract range "
+                        f"[{warn_lo}–{warn_hi}] but within science bounds [{lo}–{hi}]. "
+                        f"Verify COA document."
+                    )
+
+    return errors, warnings
+
+
 def validate_inputs_shape(inputs: Dict[str, pd.DataFrame]) -> list[str]:
     errors: list[str] = []
 
