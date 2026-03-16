@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .reporting import validate_inputs_shape
+from .reporting import validate_inputs_shape, validate_supplier_coa
 from .sample_data import (
     DISCHARGE_CSV,
     LAYERS_CSV,
@@ -806,22 +806,46 @@ def _score_blend(
 # Built once at import time — shared by all hot-path scoring functions.
 PARAM_KEYS: list[str] = list(DEFAULT_PARAM_RANGES.keys())
 
+# Brew-master importance weights for the normalised L2 objective.
+# Ordered to match PARAM_KEYS (insertion order of DEFAULT_PARAM_RANGES).
+# Rationale:
+#   diastatic_power_WK  0.30  — enzyme activity; uncorrectable in-process
+#   fine_extract_db_pct 0.25  — yield & economics; direct alcohol/cost impact
+#   wort_pH             0.20  — mash chemistry; partially correctable with salts
+#   total_protein_pct   0.15  — haze/head retention; process-manageable
+#   moisture_pct        0.07  — storage/yield; predictable, low brew-day impact
+#   wort_colour_EBC     0.03  — spec parameter; least critical for base-malt blend
+PARAM_WEIGHTS: dict[str, float] = {
+    "moisture_pct":        0.07,
+    "fine_extract_db_pct": 0.25,
+    "wort_pH":             0.20,
+    "diastatic_power_WK":  0.30,
+    "total_protein_pct":   0.15,
+    "wort_colour_EBC":     0.03,
+}
+# Pre-built weight vector aligned to PARAM_KEYS order.
+_PARAM_WEIGHT_VEC: np.ndarray = np.array(
+    [PARAM_WEIGHTS.get(k, 1.0 / len(PARAM_KEYS)) for k in PARAM_KEYS],
+    dtype=np.float64,
+)
+
 
 def _score_blend_vectorised(
     actual: dict[str, Any],
     target: dict[str, Any],
     param_ranges: dict[str, float],
 ) -> float:
-    """Normalised weighted L2 error using numpy — replaces the Python loop in _score_blend.
+    """Normalised brew-master-weighted L2 error using numpy.
 
-    ~10-20x faster in the hot path. Equal weights (1/N) across all parameters.
+    ~10-20x faster than the Python loop. Weights in PARAM_WEIGHTS reflect
+    brewing importance: diastatic_power (0.30) > fine_extract (0.25) >
+    wort_pH (0.20) > total_protein (0.15) > moisture (0.07) > colour (0.03).
     """
     a = np.array([actual.get(k, 0.0)       for k in PARAM_KEYS], dtype=np.float64)
     t = np.array([target.get(k, 0.0)       for k in PARAM_KEYS], dtype=np.float64)
     r = np.array([param_ranges.get(k, 1.0) for k in PARAM_KEYS], dtype=np.float64)
-    w = np.ones(len(PARAM_KEYS), dtype=np.float64) / len(PARAM_KEYS)
     r = np.where(r == 0.0, 1.0, r)
-    return float(np.sqrt(np.sum(w * ((a - t) / r) ** 2)))
+    return float(np.sqrt(np.sum(_PARAM_WEIGHT_VEC * ((a - t) / r) ** 2)))
 
 
 def _score_batch(
@@ -838,13 +862,12 @@ def _score_batch(
         return np.array([], dtype=np.float64)
     t = np.array([target.get(k, 0.0)       for k in PARAM_KEYS], dtype=np.float64)
     r = np.array([param_ranges.get(k, 1.0)  for k in PARAM_KEYS], dtype=np.float64)
-    w = np.ones(len(PARAM_KEYS), dtype=np.float64) / len(PARAM_KEYS)
     r = np.where(r == 0.0, 1.0, r)
     A = np.array(
         [[c["blended_params"].get(k, 0.0) for k in PARAM_KEYS] for c in candidates],
         dtype=np.float64,
     )
-    return np.sqrt(np.sum(w * ((A - t) / r) ** 2, axis=1))
+    return np.sqrt(np.sum(_PARAM_WEIGHT_VEC * ((A - t) / r) ** 2, axis=1))
 
 
 def _diverse_top_k(
@@ -897,6 +920,78 @@ def _diverse_top_k(
 
 def _clip_fraction(v: float) -> float:
     return max(DISCHARGE_FRACTION_MIN, min(DISCHARGE_FRACTION_MAX, float(v)))
+
+
+def _compute_feasibility_warnings(
+    layers_df: pd.DataFrame,
+    suppliers_df: pd.DataFrame,
+    target_params: dict[str, float],
+) -> list[dict[str, Any]]:
+    """Compute per-parameter achievable ranges from current inventory and flag targets outside them.
+
+    Each layer carries the COA of its supplier.  The achievable range for a
+    blended parameter is [min(supplier_value), max(supplier_value)] across all
+    layers that still have positive mass — a perfect blend can only be inside
+    that convex hull.
+    """
+    coa_cols = [
+        "moisture_pct",
+        "fine_extract_db_pct",
+        "wort_pH",
+        "diastatic_power_WK",
+        "total_protein_pct",
+        "wort_colour_EBC",
+    ]
+    if layers_df.empty or suppliers_df.empty:
+        return []
+
+    # Keep only layers with positive remaining mass.
+    mass_col = "segment_mass_kg" if "segment_mass_kg" in layers_df.columns else None
+    if mass_col:
+        active_layers = layers_df[layers_df[mass_col].astype(float) > 1e-6].copy()
+    else:
+        active_layers = layers_df.copy()
+
+    if active_layers.empty:
+        return []
+
+    # Join layers → suppliers on the "supplier" column.
+    if "supplier" not in active_layers.columns or "supplier" not in suppliers_df.columns:
+        return []
+
+    merged = active_layers.merge(
+        suppliers_df[["supplier"] + [c for c in coa_cols if c in suppliers_df.columns]],
+        on="supplier",
+        how="left",
+    )
+
+    warnings: list[dict[str, Any]] = []
+    for param, target_val in target_params.items():
+        if param not in merged.columns:
+            continue
+        col_vals = merged[param].dropna().astype(float)
+        if col_vals.empty:
+            continue
+        lo = float(col_vals.min())
+        hi = float(col_vals.max())
+        target_val_f = float(target_val)
+        if target_val_f < lo - 1e-9 or target_val_f > hi + 1e-9:
+            direction = "below" if target_val_f < lo else "above"
+            warnings.append(
+                {
+                    "param": param,
+                    "target": round(target_val_f, 4),
+                    "achievable_min": round(lo, 4),
+                    "achievable_max": round(hi, 4),
+                    "direction": direction,
+                    "message": (
+                        f"{param}: target {target_val_f:.4g} is {direction} the achievable "
+                        f"inventory range [{lo:.4g} – {hi:.4g}]"
+                    ),
+                }
+            )
+
+    return warnings
 
 
 def _candidate_rows_from_fractions(
@@ -1417,7 +1512,9 @@ def create_app() -> FastAPI:
             "discharge": pd.DataFrame(req.discharge),
         }
         errors = validate_inputs_shape(inputs)
-        return {"valid": len(errors) == 0, "errors": errors}
+        coa_errors, coa_warnings = validate_supplier_coa(inputs["suppliers"])
+        errors.extend(coa_errors)
+        return {"valid": len(errors) == 0, "errors": errors, "coa_warnings": coa_warnings}
 
     @app.post("/api/run")
     def run(req: RunRequest) -> dict[str, Any]:
@@ -1428,12 +1525,15 @@ def create_app() -> FastAPI:
             "discharge": pd.DataFrame(req.discharge),
         }
         errors = validate_inputs_shape(inputs)
+        coa_errors, coa_warnings = validate_supplier_coa(inputs["suppliers"])
+        errors.extend(coa_errors)
         if errors:
             raise HTTPException(status_code=422, detail=errors)
 
         cfg = RunConfig(**req.config)
         result = run_blend(inputs, cfg)
         out = _result_to_api_payload(result)
+        out["coa_warnings"] = coa_warnings
         sim_event_id = _write_sim_event(
             event_type="run",
             action="run",
@@ -1479,6 +1579,8 @@ def create_app() -> FastAPI:
         }
         inputs = _ensure_discharge_has_silo_ids(inputs)
         errors = validate_inputs_shape(inputs)
+        coa_errors, coa_warnings = validate_supplier_coa(inputs["suppliers"])
+        errors.extend(coa_errors)
         if errors:
             raise HTTPException(status_code=422, detail=errors)
         if not req.target_params:
@@ -1487,6 +1589,12 @@ def create_app() -> FastAPI:
         cfg = RunConfig(**req.config)
         silos_df = inputs["silos"].copy()
         layers_df = inputs["layers"].copy()
+        suppliers_df = inputs["suppliers"].copy()
+        feasibility_warnings = _compute_feasibility_warnings(
+            layers_df=layers_df,
+            suppliers_df=suppliers_df,
+            target_params=req.target_params,
+        )
         available_by_silo = _available_mass_by_silo(layers_df)
         available_total = float(sum(available_by_silo.values()))
         if available_total + 1e-12 < FIXED_DISCHARGE_TARGET_KG:
@@ -1593,6 +1701,8 @@ def create_app() -> FastAPI:
             "recommended_discharge": best_discharge,
             "best_run": _result_to_api_payload(best_result),
             "target_params": req.target_params,
+            "feasibility_warnings": feasibility_warnings,
+            "coa_warnings": coa_warnings,
             "fixed_discharge_target_kg": FIXED_DISCHARGE_TARGET_KG,
             "iterations": req.iterations,
             "iterations_effective": total_iter,
@@ -1600,6 +1710,7 @@ def create_app() -> FastAPI:
             "exploit_iterations": exploit_iters,
             "objective_method": "normalized_weighted_l2_hybrid_search",
             "param_ranges": DEFAULT_PARAM_RANGES,
+            "param_weights": PARAM_WEIGHTS,
             "top_candidates": top_candidates,
             "config_used": {
                 "rho_bulk_kg_m3": float(cfg.rho_bulk_kg_m3),

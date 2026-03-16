@@ -69,16 +69,23 @@ def _cmd_init_sample(args: argparse.Namespace) -> int:
 
 def _cmd_validate(args: argparse.Namespace) -> int:
     from .io import load_inputs
-    from .reporting import validate_inputs_shape
+    from .reporting import validate_inputs_shape, validate_supplier_coa
 
     inputs = load_inputs(args.input_dir)
     errors = validate_inputs_shape(inputs)
+    coa_errors, coa_warnings = validate_supplier_coa(inputs["suppliers"])
+    errors.extend(coa_errors)
     if errors:
         print("Validation failed:")
         for error in errors:
-            print(f"- {error}")
+            print(f"  [ERROR] {error}")
         return 2
-    print("Validation passed.")
+    if coa_warnings:
+        print("Validation passed with COA warnings:")
+        for w in coa_warnings:
+            print(f"  [WARN]  {w}")
+    else:
+        print("Validation passed.")
     return 0
 
 
