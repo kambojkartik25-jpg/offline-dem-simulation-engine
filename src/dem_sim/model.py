@@ -90,6 +90,8 @@ def _build_silo_map(df_silos: pd.DataFrame) -> Dict[str, Silo]:
 
 
 def _validate_suppliers(df_layers: pd.DataFrame, df_suppliers: pd.DataFrame) -> None:
+    if "supplier" not in df_layers.columns:
+        raise ValueError("df_layers must include 'supplier' when supplier mode is used.")
     if "supplier" not in df_suppliers.columns:
         raise ValueError("df_suppliers must include 'supplier' column.")
     missing = set(df_layers["supplier"].astype(str).unique()) - set(
@@ -99,13 +101,35 @@ def _validate_suppliers(df_layers: pd.DataFrame, df_suppliers: pd.DataFrame) -> 
         raise ValueError(f"Suppliers in df_layers not found in df_suppliers: {missing}")
 
 
+def _lot_level_param_cols(df: pd.DataFrame) -> list[str]:
+    reserved = {
+        "silo_id",
+        "layer_index",
+        "lot_id",
+        "supplier",
+        "segment_mass_kg",
+        "discharged_mass_kg",
+        "remaining_mass_kg",
+        "z0_m",
+        "z1_m",
+    }
+    cols: list[str] = []
+    for c in df.columns:
+        if c in reserved:
+            continue
+        s = pd.to_numeric(df[c], errors="coerce")
+        if s.notna().any():
+            cols.append(c)
+    return cols
+
+
 def build_intervals_from_df_layers(
     silo_id: str,
     df_layers: pd.DataFrame,
     silo: Silo,
     material: Material,
 ) -> tuple[pd.DataFrame, float]:
-    required = {"silo_id", "layer_index", "lot_id", "supplier", "segment_mass_kg"}
+    required = {"silo_id", "layer_index", "lot_id", "segment_mass_kg"}
     missing = required - set(df_layers.columns)
     if missing:
         raise ValueError(f"df_layers missing columns: {missing}")
@@ -333,7 +357,7 @@ def estimate_discharge_contrib_for_silo(
                 steps=steps,
             )
 
-    lot_contrib = (
+    lot_mass = (
         seg_contrib.groupby(["silo_id", "lot_id", "supplier"], as_index=False)[
             "discharged_mass_kg"
         ]
@@ -341,6 +365,21 @@ def estimate_discharge_contrib_for_silo(
         .sort_values(["silo_id", "lot_id"])
         .reset_index(drop=True)
     )
+    spec_cols = _lot_level_param_cols(seg_contrib)
+    if spec_cols:
+        lot_specs = (
+            seg_contrib.groupby(["silo_id", "lot_id", "supplier"], as_index=False)[spec_cols]
+            .first()
+            .sort_values(["silo_id", "lot_id"])
+            .reset_index(drop=True)
+        )
+        lot_contrib = lot_mass.merge(
+            lot_specs,
+            on=["silo_id", "lot_id", "supplier"],
+            how="left",
+        )
+    else:
+        lot_contrib = lot_mass
 
     return {
         "silo_id": silo.silo_id,
@@ -365,22 +404,28 @@ def estimate_discharge_contrib_for_silo(
 def blend_params_from_contrib(
     df_contrib: pd.DataFrame, df_suppliers: pd.DataFrame
 ) -> Dict[str, float]:
-    required = {"supplier", "discharged_mass_kg"}
+    required = {"discharged_mass_kg"}
     missing = required - set(df_contrib.columns)
     if missing:
         raise ValueError(f"df_contrib missing columns: {missing}")
 
-    param_cols = [c for c in df_suppliers.columns if c != "supplier"]
-    if not param_cols:
-        raise ValueError(
-            "df_suppliers must have at least one parameter column besides 'supplier'."
-        )
-
-    merged = df_contrib.merge(df_suppliers, on="supplier", how="left")
-    if merged[param_cols].isna().any().any():
-        raise ValueError(
-            "Some suppliers in contributions do not have complete specs in df_suppliers."
-        )
+    # Prefer lot-level specs directly in contribution rows; fallback to supplier lookup.
+    param_cols = _lot_level_param_cols(df_contrib)
+    if param_cols:
+        merged = df_contrib.copy()
+    else:
+        if "supplier" not in df_contrib.columns:
+            raise ValueError("df_contrib must include 'supplier' when lot-level specs are absent.")
+        param_cols = [c for c in df_suppliers.columns if c != "supplier"]
+        if not param_cols:
+            raise ValueError(
+                "df_suppliers must have at least one parameter column besides 'supplier'."
+            )
+        merged = df_contrib.merge(df_suppliers, on="supplier", how="left")
+        if merged[param_cols].isna().any().any():
+            raise ValueError(
+                "Some suppliers in contributions do not have complete specs in df_suppliers."
+            )
 
     total_mass = float(merged["discharged_mass_kg"].sum())
     if total_mass <= 0:
@@ -422,7 +467,8 @@ def run_multi_silo_blend(
     if "silo_id" not in df_discharge.columns:
         raise ValueError("df_discharge must include 'silo_id' column.")
 
-    _validate_suppliers(df_layers, df_suppliers)
+    if not _lot_level_param_cols(df_layers):
+        _validate_suppliers(df_layers, df_suppliers)
     silos = _build_silo_map(df_silos)
     if len(silos) != 3:
         warnings.warn(f"Expected 3 silos; got {len(silos)}. Running on provided silos.")
@@ -494,3 +540,5 @@ def run_multi_silo_blend(
         "total_remaining_mass_kg": float(df_silo_state_ledger["remaining_mass_kg"].sum()),
         "total_blended_params": total_blended_params,
     }
+    if "supplier" not in d.columns:
+        d["supplier"] = d["lot_id"].astype(str)

@@ -3,6 +3,15 @@ from __future__ import annotations
 from typing import Any
 
 
+def _lot_spec_fields(lot: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for k, v in lot.items():
+        if k in {"lot_id", "supplier", "mass_kg"}:
+            continue
+        out[k] = v
+    return out
+
+
 def _remaining_capacity_by_silo(
     silos: list[dict[str, Any]], layers: list[dict[str, Any]]
 ) -> dict[str, float]:
@@ -51,6 +60,7 @@ def allocate_lots_to_silos(
         lot_mass = max(0.0, float(lot.get("mass_kg", 0.0)))
         lot_id = str(lot.get("lot_id", ""))
         supplier = str(lot.get("supplier", ""))
+        lot_specs = _lot_spec_fields(lot)
         if lot_mass <= 0:
             continue
         remaining_lot = lot_mass
@@ -69,6 +79,7 @@ def allocate_lots_to_silos(
                     "lot_id": lot_id,
                     "supplier": supplier,
                     "segment_mass_kg": round(alloc, 6),
+                    **lot_specs,
                 }
             )
             remaining_lot -= alloc
@@ -106,6 +117,7 @@ def allocate_lots_append_to_existing(
         lot_mass = max(0.0, float(lot.get("mass_kg", 0.0)))
         lot_id = str(lot.get("lot_id", ""))
         supplier = str(lot.get("supplier", ""))
+        lot_specs = _lot_spec_fields(lot)
         if lot_mass <= 0:
             continue
         remaining_lot = lot_mass
@@ -126,6 +138,7 @@ def allocate_lots_append_to_existing(
                     "lot_id": lot_id,
                     "supplier": supplier,
                     "segment_mass_kg": round(alloc, 6),
+                    **lot_specs,
                 }
             )
             remaining_lot -= alloc

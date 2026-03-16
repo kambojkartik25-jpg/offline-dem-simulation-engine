@@ -240,15 +240,14 @@ function renderSchedRandomData(payload) {
     schedGenSilosWrapEl.innerHTML = `<table><thead><tr><th>Silo</th><th>Capacity (kg)</th><th>Body Dia (m)</th><th>Outlet Dia (m)</th></tr></thead><tbody>${rows || "<tr><td colspan='4'>No silos</td></tr>"}</tbody></table>`;
   }
   if (schedGenSuppliersWrapEl) {
-    const rows = suppliers.map(s => `<tr><td>${s.supplier}</td><td>${Number(s.moisture_pct||0).toFixed(2)}</td><td>${Number(s.fine_extract_db_pct||0).toFixed(2)}</td><td>${Number(s.diastatic_power_WK||0).toFixed(0)}</td><td>${Number(s.wort_colour_EBC||0).toFixed(2)}</td></tr>`).join("");
-    schedGenSuppliersWrapEl.innerHTML = `<table><thead><tr><th>Supplier</th><th>Moisture%</th><th>Fine Extract%</th><th>Diast. Power</th><th>Colour EBC</th></tr></thead><tbody>${rows || "<tr><td colspan='5'>No suppliers</td></tr>"}</tbody></table>`;
+    schedGenSuppliersWrapEl.innerHTML = "";
   }
   // loaded lots from layers
   const loadedMap = new Map();
   (payload.layers || []).forEach(r => {
     const mass = Number(r.remaining_mass_kg ?? r.loaded_mass ?? r.segment_mass_kg ?? 0);
     if (mass <= 0) return;
-    const key = `${r.lot_id}__${r.supplier}`;
+    const key = `${r.lot_id}`;
     loadedMap.set(key, (loadedMap.get(key) || 0) + mass);
   });
   if (schedGenLoadedLotsWrapEl) {
@@ -256,19 +255,19 @@ function renderSchedRandomData(payload) {
     if (!loaded.length) {
       schedGenLoadedLotsWrapEl.innerHTML = "<div style='color:var(--muted);font-size:12px;padding:6px 0'>No lots currently loaded in silos.</div>";
     } else {
-      const rows = loaded.map(([k, mass]) => { const [lot, sup] = k.split("__"); return `<tr><td>${lot}</td><td>${sup}</td><td>${mass.toFixed(3)}</td></tr>`; }).join("");
-      schedGenLoadedLotsWrapEl.innerHTML = `<table><thead><tr><th>Lot</th><th>Supplier</th><th>Total Loaded (kg)</th></tr></thead><tbody>${rows}</tbody></table>`;
+      const rows = loaded.map(([lot, mass]) => `<tr><td>${lot}</td><td>${mass.toFixed(3)}</td></tr>`).join("");
+      schedGenLoadedLotsWrapEl.innerHTML = `<table><thead><tr><th>Lot</th><th>Total Loaded (kg)</th></tr></thead><tbody>${rows}</tbody></table>`;
     }
   }
   if (schedGenIncomingLotsWrapEl) {
-    const rows = queue.slice(0, 20).map(item => `<tr><td>${item.lot_id||""}</td><td>${item.supplier||""}</td><td>${Number(item.mass_kg||0).toFixed(3)}</td></tr>`).join("");
-    const more = queue.length > 20 ? `<tr><td colspan="3" style="color:var(--muted)">…and ${queue.length - 20} more lots</td></tr>` : "";
-    schedGenIncomingLotsWrapEl.innerHTML = `<table><thead><tr><th>Lot</th><th>Supplier</th><th>Mass (kg)</th></tr></thead><tbody>${rows || "<tr><td colspan='3'>Empty queue</td></tr>"}${more}</tbody></table>`;
+    const rows = queue.slice(0, 20).map(item => `<tr><td>${item.lot_id||""}</td><td>${Number(item.mass_kg||0).toFixed(3)}</td></tr>`).join("");
+    const more = queue.length > 20 ? `<tr><td colspan="2" style="color:var(--muted)">…and ${queue.length - 20} more lots</td></tr>` : "";
+    schedGenIncomingLotsWrapEl.innerHTML = `<table><thead><tr><th>Lot</th><th>Mass (kg)</th></tr></thead><tbody>${rows || "<tr><td colspan='2'>Empty queue</td></tr>"}${more}</tbody></table>`;
   }
   if (schedRandomStatusEl) {
     const total = queue.reduce((acc, i) => acc + Number(i.mass_kg||0), 0);
     schedRandomStatusEl.className = "run-status success top-gap";
-    schedRandomStatusEl.textContent = `Generated: ${silos.length} silos · ${suppliers.length} suppliers · ${queue.length} lots (${total.toFixed(0)} kg queue).`;
+    schedRandomStatusEl.textContent = `Generated: ${silos.length} silos · ${queue.length} lots (${total.toFixed(0)} kg queue).`;
   }
 }
 
@@ -569,20 +568,17 @@ function renderUpcomingLots(payload) {
       r.remaining_mass_kg ?? r.loaded_mass ?? r.segment_mass_kg ?? 0
     );
     if (mass <= 0) return;
-    const key = `${r.lot_id}__${r.supplier}`;
+    const key = `${r.lot_id}`;
     const prev = loadedMap.get(key) || 0;
     loadedMap.set(key, prev + mass);
   });
   const loadedRows = Array.from(loadedMap.entries())
     .filter(([, mass]) => Number(mass) > 0)
-    .map(([k, mass]) => {
-      const [lotId, supplier] = k.split("__");
-      return `<tr><td>${lotId}</td><td>${supplier}</td><td>${mass.toFixed(3)}</td></tr>`;
-    })
+    .map(([lotId, mass]) => `<tr><td>${lotId}</td><td>${mass.toFixed(3)}</td></tr>`)
     .join("");
   upcomingLotsWrapEl.innerHTML = `
     <table>
-      <thead><tr><th>Lot</th><th>Supplier</th><th>Total Loaded (kg)</th></tr></thead>
+      <thead><tr><th>Lot</th><th>Total Loaded (kg)</th></tr></thead>
       <tbody>${loadedRows}</tbody>
     </table>
   `;
@@ -591,18 +587,17 @@ function renderUpcomingLots(payload) {
   const incomingRows = incoming
     .map((item) => {
       if (typeof item === "string") {
-        return `<tr><td>${item}</td><td>-</td><td>-</td></tr>`;
+        return `<tr><td>${item}</td><td>-</td></tr>`;
       }
       const lotId = String(item?.lot_id ?? item?.lot ?? "");
-      const supplier = String(item?.supplier ?? "-");
       const mass = Number(item?.mass_kg ?? item?.remaining_mass_kg ?? 0);
-      return `<tr><td>${lotId}</td><td>${supplier}</td><td>${mass.toFixed(3)}</td></tr>`;
+      return `<tr><td>${lotId}</td><td>${mass.toFixed(3)}</td></tr>`;
     })
     .join("");
   incomingLotsWrapEl.innerHTML = `
     <table>
-      <thead><tr><th>Lot</th><th>Supplier</th><th>Mass (kg)</th></tr></thead>
-      <tbody>${incomingRows || "<tr><td colspan='3'>No incoming lots</td></tr>"}</tbody>
+      <thead><tr><th>Lot</th><th>Mass (kg)</th></tr></thead>
+      <tbody>${incomingRows || "<tr><td colspan='2'>No incoming lots</td></tr>"}</tbody>
     </table>
   `;
 }

@@ -92,7 +92,7 @@ def validate_inputs_shape(inputs: Dict[str, pd.DataFrame]) -> list[str]:
     discharge = inputs["discharge"]
 
     required_silos = {"silo_id", "capacity_kg", "body_diameter_m", "outlet_diameter_m"}
-    required_layers = {"silo_id", "layer_index", "lot_id", "supplier", "segment_mass_kg"}
+    required_layers = {"silo_id", "layer_index", "lot_id", "segment_mass_kg"}
     required_suppliers = {"supplier"}
     required_discharge = {"silo_id"}
 
@@ -100,7 +100,23 @@ def validate_inputs_shape(inputs: Dict[str, pd.DataFrame]) -> list[str]:
         errors.append(f"silos.csv missing: {required_silos - set(silos.columns)}")
     if not required_layers.issubset(layers.columns):
         errors.append(f"layers.csv missing: {required_layers - set(layers.columns)}")
-    if not required_suppliers.issubset(suppliers.columns):
+    has_lot_level_specs = any(
+        c in layers.columns
+        for c in [
+            "moisture_pct",
+            "fine_extract_db_pct",
+            "wort_pH",
+            "diastatic_power_WK",
+            "total_protein_pct",
+            "wort_colour_EBC",
+            "soluble_n_mg_100g",
+            "free_amino_n_mg_100g",
+            "kolbach_index_pct",
+            "beta_glucan_65c_mg_100g",
+            "viscosity_mpas",
+        ]
+    )
+    if (not has_lot_level_specs) and (not required_suppliers.issubset(suppliers.columns)):
         errors.append(f"suppliers.csv missing: {required_suppliers - set(suppliers.columns)}")
     if not required_discharge.issubset(discharge.columns):
         errors.append(f"discharge.csv missing: {required_discharge - set(discharge.columns)}")
@@ -108,7 +124,7 @@ def validate_inputs_shape(inputs: Dict[str, pd.DataFrame]) -> list[str]:
     if "silo_id" in silos.columns and silos["silo_id"].astype(str).duplicated().any():
         errors.append("silos.csv has duplicate silo_id values.")
 
-    if "supplier" in layers.columns and "supplier" in suppliers.columns:
+    if (not has_lot_level_specs) and "supplier" in layers.columns and "supplier" in suppliers.columns:
         unknown = set(layers["supplier"].astype(str)) - set(suppliers["supplier"].astype(str))
         if unknown:
             errors.append(f"layers.csv references unknown suppliers: {sorted(unknown)}")
