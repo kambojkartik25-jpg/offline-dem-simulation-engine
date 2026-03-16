@@ -806,22 +806,46 @@ def _score_blend(
 # Built once at import time — shared by all hot-path scoring functions.
 PARAM_KEYS: list[str] = list(DEFAULT_PARAM_RANGES.keys())
 
+# Brew-master importance weights for the normalised L2 objective.
+# Ordered to match PARAM_KEYS (insertion order of DEFAULT_PARAM_RANGES).
+# Rationale:
+#   diastatic_power_WK  0.30  — enzyme activity; uncorrectable in-process
+#   fine_extract_db_pct 0.25  — yield & economics; direct alcohol/cost impact
+#   wort_pH             0.20  — mash chemistry; partially correctable with salts
+#   total_protein_pct   0.15  — haze/head retention; process-manageable
+#   moisture_pct        0.07  — storage/yield; predictable, low brew-day impact
+#   wort_colour_EBC     0.03  — spec parameter; least critical for base-malt blend
+PARAM_WEIGHTS: dict[str, float] = {
+    "moisture_pct":        0.07,
+    "fine_extract_db_pct": 0.25,
+    "wort_pH":             0.20,
+    "diastatic_power_WK":  0.30,
+    "total_protein_pct":   0.15,
+    "wort_colour_EBC":     0.03,
+}
+# Pre-built weight vector aligned to PARAM_KEYS order.
+_PARAM_WEIGHT_VEC: np.ndarray = np.array(
+    [PARAM_WEIGHTS.get(k, 1.0 / len(PARAM_KEYS)) for k in PARAM_KEYS],
+    dtype=np.float64,
+)
+
 
 def _score_blend_vectorised(
     actual: dict[str, Any],
     target: dict[str, Any],
     param_ranges: dict[str, float],
 ) -> float:
-    """Normalised weighted L2 error using numpy — replaces the Python loop in _score_blend.
+    """Normalised brew-master-weighted L2 error using numpy.
 
-    ~10-20x faster in the hot path. Equal weights (1/N) across all parameters.
+    ~10-20x faster than the Python loop. Weights in PARAM_WEIGHTS reflect
+    brewing importance: diastatic_power (0.30) > fine_extract (0.25) >
+    wort_pH (0.20) > total_protein (0.15) > moisture (0.07) > colour (0.03).
     """
     a = np.array([actual.get(k, 0.0)       for k in PARAM_KEYS], dtype=np.float64)
     t = np.array([target.get(k, 0.0)       for k in PARAM_KEYS], dtype=np.float64)
     r = np.array([param_ranges.get(k, 1.0) for k in PARAM_KEYS], dtype=np.float64)
-    w = np.ones(len(PARAM_KEYS), dtype=np.float64) / len(PARAM_KEYS)
     r = np.where(r == 0.0, 1.0, r)
-    return float(np.sqrt(np.sum(w * ((a - t) / r) ** 2)))
+    return float(np.sqrt(np.sum(_PARAM_WEIGHT_VEC * ((a - t) / r) ** 2)))
 
 
 def _score_batch(
@@ -838,13 +862,12 @@ def _score_batch(
         return np.array([], dtype=np.float64)
     t = np.array([target.get(k, 0.0)       for k in PARAM_KEYS], dtype=np.float64)
     r = np.array([param_ranges.get(k, 1.0)  for k in PARAM_KEYS], dtype=np.float64)
-    w = np.ones(len(PARAM_KEYS), dtype=np.float64) / len(PARAM_KEYS)
     r = np.where(r == 0.0, 1.0, r)
     A = np.array(
         [[c["blended_params"].get(k, 0.0) for k in PARAM_KEYS] for c in candidates],
         dtype=np.float64,
     )
-    return np.sqrt(np.sum(w * ((A - t) / r) ** 2, axis=1))
+    return np.sqrt(np.sum(_PARAM_WEIGHT_VEC * ((A - t) / r) ** 2, axis=1))
 
 
 def _diverse_top_k(
@@ -1679,6 +1702,7 @@ def create_app() -> FastAPI:
             "exploit_iterations": exploit_iters,
             "objective_method": "normalized_weighted_l2_hybrid_search",
             "param_ranges": DEFAULT_PARAM_RANGES,
+            "param_weights": PARAM_WEIGHTS,
             "top_candidates": top_candidates,
             "config_used": {
                 "rho_bulk_kg_m3": float(cfg.rho_bulk_kg_m3),
