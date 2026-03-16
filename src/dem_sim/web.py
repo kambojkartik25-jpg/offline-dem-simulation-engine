@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .reporting import validate_inputs_shape
+from .reporting import validate_inputs_shape, validate_supplier_coa
 from .sample_data import (
     DISCHARGE_CSV,
     LAYERS_CSV,
@@ -1512,7 +1512,9 @@ def create_app() -> FastAPI:
             "discharge": pd.DataFrame(req.discharge),
         }
         errors = validate_inputs_shape(inputs)
-        return {"valid": len(errors) == 0, "errors": errors}
+        coa_errors, coa_warnings = validate_supplier_coa(inputs["suppliers"])
+        errors.extend(coa_errors)
+        return {"valid": len(errors) == 0, "errors": errors, "coa_warnings": coa_warnings}
 
     @app.post("/api/run")
     def run(req: RunRequest) -> dict[str, Any]:
@@ -1523,12 +1525,15 @@ def create_app() -> FastAPI:
             "discharge": pd.DataFrame(req.discharge),
         }
         errors = validate_inputs_shape(inputs)
+        coa_errors, coa_warnings = validate_supplier_coa(inputs["suppliers"])
+        errors.extend(coa_errors)
         if errors:
             raise HTTPException(status_code=422, detail=errors)
 
         cfg = RunConfig(**req.config)
         result = run_blend(inputs, cfg)
         out = _result_to_api_payload(result)
+        out["coa_warnings"] = coa_warnings
         sim_event_id = _write_sim_event(
             event_type="run",
             action="run",
@@ -1574,6 +1579,8 @@ def create_app() -> FastAPI:
         }
         inputs = _ensure_discharge_has_silo_ids(inputs)
         errors = validate_inputs_shape(inputs)
+        coa_errors, coa_warnings = validate_supplier_coa(inputs["suppliers"])
+        errors.extend(coa_errors)
         if errors:
             raise HTTPException(status_code=422, detail=errors)
         if not req.target_params:
@@ -1695,6 +1702,7 @@ def create_app() -> FastAPI:
             "best_run": _result_to_api_payload(best_result),
             "target_params": req.target_params,
             "feasibility_warnings": feasibility_warnings,
+            "coa_warnings": coa_warnings,
             "fixed_discharge_target_kg": FIXED_DISCHARGE_TARGET_KG,
             "iterations": req.iterations,
             "iterations_effective": total_iter,

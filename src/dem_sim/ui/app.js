@@ -383,7 +383,11 @@ function setStepState(stepEl, statusEl, stateClass, label) {
 function classifyIssue(message) {
   const lower = String(message || "").toLowerCase();
   let severity = "error";
-  if (lower.includes("duplicate") || lower.includes("unknown") || lower.includes("missing")) {
+  if (lower.includes("coa warning")) {
+    severity = "warn";
+  } else if (lower.includes("coa error")) {
+    severity = "error";
+  } else if (lower.includes("duplicate") || lower.includes("unknown") || lower.includes("missing")) {
     severity = "error";
   } else if (lower.includes("must have") || lower.includes("between 0 and 1")) {
     severity = "error";
@@ -404,12 +408,21 @@ function classifyIssue(message) {
   if (lower.includes("discharge_fraction")) field = "discharge_fraction";
   if (lower.includes("discharge_mass_kg")) field = "discharge_mass_kg";
   if (lower.includes("capacity_kg")) field = "capacity_kg";
+  // COA parameter fields
+  if (lower.includes("moisture")) field = "moisture_pct";
+  if (lower.includes("fine extract")) field = "fine_extract_db_pct";
+  if (lower.includes("wort ph")) field = "wort_pH";
+  if (lower.includes("diastatic power")) field = "diastatic_power_WK";
+  if (lower.includes("total protein")) field = "total_protein_pct";
+  if (lower.includes("wort colour")) field = "wort_colour_EBC";
 
   let hint = "Review this field value and rerun validation.";
   if (lower.includes("missing")) hint = "Add the required column in the referenced CSV file.";
   if (lower.includes("duplicate")) hint = "Remove duplicates and keep unique key rows only.";
   if (lower.includes("between 0 and 1")) hint = "Set value within range 0.0 to 1.0.";
   if (lower.includes("must have")) hint = "Ensure all rows satisfy the numeric constraint.";
+  if (lower.includes("coa error")) hint = "Check units or data entry — value is outside physical science bounds (EBC/ASBC).";
+  if (lower.includes("coa warning")) hint = "Value is unusual but physically possible. Verify against the supplier COA document before proceeding.";
 
   return { severity, file, field, message: String(message), hint };
 }
@@ -678,6 +691,44 @@ function renderContributionBars(result) {
     .join("");
 }
 
+function renderCoaWarnings(warnings, anchorEl) {
+  // Render a COA warning panel before anchorEl (run or optimize output area).
+  const bannerId = "coaWarningBanner_" + (anchorEl ? anchorEl.id : "global");
+  let bannerEl = document.getElementById(bannerId);
+  if (!bannerEl) {
+    bannerEl = document.createElement("div");
+    bannerEl.id = bannerId;
+    bannerEl.style.cssText = "margin:8px 0;padding:10px 14px;border-radius:6px;font-size:13px;line-height:1.55;display:none;";
+    if (anchorEl && anchorEl.parentNode) {
+      anchorEl.parentNode.insertBefore(bannerEl, anchorEl);
+    }
+  }
+  if (!warnings || warnings.length === 0) {
+    bannerEl.style.display = "none";
+    bannerEl.innerHTML = "";
+    return;
+  }
+  const rows = warnings.map((w) => {
+    // Extract supplier and param from message for colour-coded display.
+    const supplierMatch = w.match(/supplier '([^']+)'/);
+    const supplier = supplierMatch ? supplierMatch[1] : "unknown";
+    const paramMatch = w.match(/— ([^v]+) value ([\d.]+) is outside typical contract range \[([\d.]+)–([\d.]+)\]/);
+    if (paramMatch) {
+      return `<li><strong>${supplier}</strong> — <span style="color:#92400e">${paramMatch[1].trim()}</span>: ` +
+        `value <strong>${paramMatch[2]}</strong> outside typical range [${paramMatch[3]}–${paramMatch[4]}]</li>`;
+    }
+    return `<li>${w}</li>`;
+  }).join("");
+  bannerEl.style.cssText =
+    "margin:8px 0;padding:10px 14px;border-radius:6px;font-size:13px;line-height:1.55;" +
+    "background:#fffbeb;border:1.5px solid #f59e0b;color:#78350f;display:block;";
+  bannerEl.innerHTML =
+    `<strong>⚠ Supplier COA Warnings (${warnings.length})</strong>` +
+    `<p style="margin:4px 0 6px">These suppliers have parameter values outside the typical contract range. ` +
+    `Verify against original COA documents before acting on results.</p>` +
+    `<ul style="margin:0;padding-left:18px">${rows}</ul>`;
+}
+
 function renderFeasibilityWarnings(warnings) {
   // Find or create the warning banner container just above the opt output.
   let bannerEl = document.getElementById("feasibilityWarningBanner");
@@ -825,11 +876,12 @@ async function validatePayload() {
       body: JSON.stringify(payload),
     });
     const data = await r.json();
+    const allIssues = [...(data.errors || []), ...(data.coa_warnings || [])];
     if (data.valid) {
-      const counts = renderValidationIssues(data.errors || []);
+      const counts = renderValidationIssues(allIssues);
       setValidationState(true, counts.blockingCount, counts.warningCount);
     } else {
-      const counts = renderValidationIssues(data.errors || []);
+      const counts = renderValidationIssues(allIssues);
       setValidationState(false, counts.blockingCount, counts.warningCount);
     }
     printRaw(data);
@@ -914,6 +966,7 @@ async function runSimulation() {
     setStepState(stepResults, statusResults, "is-success", "Ready");
     runStatusEl.className = "run-status success";
     runStatusEl.textContent = "Fill complete. No discharge performed.";
+    renderCoaWarnings(data.coa_warnings || [], rawOutEl);
     printRaw(data);
     return { ok: true, data };
   } catch (e) {
@@ -978,6 +1031,7 @@ async function optimizeBlend() {
     }
     // Optimization is advisory only; do not mutate current fill-state visuals.
     lastOptimizeContext = { mode: "studio", scheduleId: "", brewId: "" };
+    renderCoaWarnings(data.coa_warnings || [], optOutEl);
     renderFeasibilityWarnings(data.feasibility_warnings || []);
     renderCandidateTable(data, lastOptimizeContext);
     lastOptimizePayload = data;
@@ -997,6 +1051,7 @@ async function optimizeBlend() {
     setStepState(stepOptimize, statusOptimize, "is-success", "Complete");
     if (optimizeBtn) optimizeBtn.disabled = false;
   } catch (e) {
+    renderCoaWarnings([], optOutEl);
     renderFeasibilityWarnings([]);
     if (optOutEl) optOutEl.textContent = String(e);
     setStepState(stepOptimize, statusOptimize, "is-warning", "Failed");
