@@ -72,6 +72,11 @@ def _suppliers_from_incoming_queue_rows(rows: list[dict[str, Any]]) -> list[dict
             "wort_pH": _alias_float(r, "wort_pH", "wort_ph"),
             "diastatic_power_WK": _alias_float(r, "diastatic_power_WK", "diastatic_power_wk"),
             "total_protein_pct": float(r.get("total_protein_pct", 0.0) or 0.0),
+            "soluble_n_mg_100g": float(r.get("soluble_n_mg_100g", 0.0) or 0.0),
+            "free_amino_n_mg_100g": float(r.get("free_amino_n_mg_100g", 0.0) or 0.0),
+            "kolbach_index_pct": float(r.get("kolbach_index_pct", 0.0) or 0.0),
+            "beta_glucan_65c_mg_100g": float(r.get("beta_glucan_65c_mg_100g", 0.0) or 0.0),
+            "viscosity_mpas": float(r.get("viscosity_mpas", 0.0) or 0.0),
             "wort_colour_EBC": _alias_float(r, "wort_colour_EBC", "wort_colour_ebc"),
         }
     return list(supplier_agg.values())
@@ -259,6 +264,7 @@ class OptimizeRequest(RunRequest):
     target_params: dict[str, float] = Field(default_factory=dict)
     iterations: int = 120
     seed: int = 42
+    use_latest_state: bool = False
 
 
 class ProcessRunSimulationRequest(BaseModel):
@@ -290,7 +296,7 @@ class GenerateRandomDataRequest(BaseModel):
 class GenerateScheduleRequest(BaseModel):
     schedule_id: str | None = None
     name: str = "MVP Brew Schedule"
-    brews_count: int = 5
+    brews_count: int = 7
     seed: int = 42
     target_params: dict[str, float] = Field(default_factory=dict)
 
@@ -323,7 +329,6 @@ def _generate_random_payload(
     silos_count = max(1, int(silos_count))
     lots_count = max(1, int(lots_count))
     lot_size_kg = max(1.0, float(lot_size_kg))
-    suppliers = ["BBM", "COFCO", "Malteurop"]
 
     silos: list[dict[str, Any]] = []
     for i in range(silos_count):
@@ -337,51 +342,66 @@ def _generate_random_payload(
             }
         )
 
-    supplier_specs = {
-        "BBM": {
-            "supplier": "BBM",
-            "moisture_pct": 4.20,
-            "fine_extract_db_pct": 82.10,
-            "wort_pH": 5.86,
-            "diastatic_power_WK": 320.0,
-            "total_protein_pct": 10.40,
-            "wort_colour_EBC": 4.30,
-        },
-        "COFCO": {
-            "supplier": "COFCO",
-            "moisture_pct": 4.35,
-            "fine_extract_db_pct": 82.40,
-            "wort_pH": 5.89,
-            "diastatic_power_WK": 332.0,
-            "total_protein_pct": 10.60,
-            "wort_colour_EBC": 4.40,
-        },
-        "Malteurop": {
-            "supplier": "Malteurop",
-            "moisture_pct": 4.50,
-            "fine_extract_db_pct": 82.70,
-            "wort_pH": 5.92,
-            "diastatic_power_WK": 344.0,
-            "total_protein_pct": 10.80,
-            "wort_colour_EBC": 4.50,
-        },
+    spec_ranges = {
+        # One-sided spec style inputs with broader bands for visible optimization diversity.
+        # We intentionally keep variability on both sides of the threshold.
+        "moisture_pct": {"target": 5.0, "low": 3.8, "high": 5.8, "has_range": False},              # < 5.0 preferred
+        "fine_extract_db_pct": {"target": 81.0, "low": 80.0, "high": 84.0, "has_range": False},    # > 81.0 preferred
+        "wort_pH": {"target": 5.9, "low": 5.8, "high": 6.1, "has_range": True},
+        "diastatic_power_WK": {"target": 300.0, "low": 280.0, "high": 380.0, "has_range": False},  # > 300 preferred
+        "total_protein_pct": {"target": 10.7, "low": 9.5, "high": 12.0, "has_range": True},
+        "soluble_n_mg_100g": {"target": 710.0, "low": 640.0, "high": 740.0, "has_range": True},
+        "free_amino_n_mg_100g": {"target": 150.0, "low": 130.0, "high": 210.0, "has_range": False},  # > 150 preferred
+        "kolbach_index_pct": {"target": 41.0, "low": 39.0, "high": 45.0, "has_range": True},
+        "beta_glucan_65c_mg_100g": {"target": 100.0, "low": 60.0, "high": 170.0, "has_range": False},  # < 100 preferred
+        "viscosity_mpas": {"target": 1.55, "low": 1.10, "high": 1.80, "has_range": False},            # < 1.55 preferred
+        "wort_colour_EBC": {"target": 4.5, "low": 4.0, "high": 5.0, "has_range": True},
     }
-    suppliers_rows = [supplier_specs[s] for s in suppliers]
+
+    def _sample_param(key: str) -> float:
+        spec = spec_ranges[key]
+        low = float(spec["low"])
+        high = float(spec["high"])
+        target = float(spec["target"])
+        has_range = bool(spec.get("has_range", False))
+        if has_range:
+            return float(rng.triangular(low, high, target))
+        return float(rng.uniform(low, high))
+
+    suppliers_rows: list[dict[str, Any]] = []
     incoming_queue: list[dict[str, Any]] = []
     for i in range(lots_count):
-        sup = suppliers[i % len(suppliers)]
-        spec = supplier_specs[sup]
+        lot_id = f"LOT{i+1:03d}"
+        sup = f"SPEC_{lot_id}"
+        lot_spec = {
+            "moisture_pct": round(_sample_param("moisture_pct"), 3),
+            "fine_extract_db_pct": round(_sample_param("fine_extract_db_pct"), 3),
+            "wort_pH": round(_sample_param("wort_pH"), 3),
+            "diastatic_power_WK": round(_sample_param("diastatic_power_WK"), 3),
+            "total_protein_pct": round(_sample_param("total_protein_pct"), 3),
+            "soluble_n_mg_100g": round(_sample_param("soluble_n_mg_100g"), 3),
+            "free_amino_n_mg_100g": round(_sample_param("free_amino_n_mg_100g"), 3),
+            "kolbach_index_pct": round(_sample_param("kolbach_index_pct"), 3),
+            "beta_glucan_65c_mg_100g": round(_sample_param("beta_glucan_65c_mg_100g"), 3),
+            "viscosity_mpas": round(_sample_param("viscosity_mpas"), 3),
+            "wort_colour_EBC": round(_sample_param("wort_colour_EBC"), 3),
+        }
         incoming_queue.append(
             {
-                "lot_id": f"LOT{i+1:03d}",
+                "lot_id": lot_id,
                 "supplier": sup,
                 "mass_kg": float(lot_size_kg),
-                "moisture_pct": float(spec["moisture_pct"]),
-                "fine_extract_db_pct": float(spec["fine_extract_db_pct"]),
-                "wort_pH": float(spec["wort_pH"]),
-                "diastatic_power_WK": float(spec["diastatic_power_WK"]),
-                "total_protein_pct": float(spec["total_protein_pct"]),
-                "wort_colour_EBC": float(spec["wort_colour_EBC"]),
+                "moisture_pct": float(lot_spec["moisture_pct"]),
+                "fine_extract_db_pct": float(lot_spec["fine_extract_db_pct"]),
+                "wort_pH": float(lot_spec["wort_pH"]),
+                "diastatic_power_WK": float(lot_spec["diastatic_power_WK"]),
+                "total_protein_pct": float(lot_spec["total_protein_pct"]),
+                "soluble_n_mg_100g": float(lot_spec["soluble_n_mg_100g"]),
+                "free_amino_n_mg_100g": float(lot_spec["free_amino_n_mg_100g"]),
+                "kolbach_index_pct": float(lot_spec["kolbach_index_pct"]),
+                "beta_glucan_65c_mg_100g": float(lot_spec["beta_glucan_65c_mg_100g"]),
+                "viscosity_mpas": float(lot_spec["viscosity_mpas"]),
+                "wort_colour_EBC": float(lot_spec["wort_colour_EBC"]),
             }
         )
 
@@ -435,8 +455,12 @@ def _replace_db_seed_data(payload: dict[str, Any]) -> None:
             for sp in suppliers:
                 conn.execute(
                     """
-                    INSERT INTO suppliers (name, moisture_pct, fine_extract_db_pct, wort_pH, diastatic_power_WK, total_protein_pct, wort_colour_EBC)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO suppliers (
+                        name, moisture_pct, fine_extract_db_pct, wort_pH, diastatic_power_WK, total_protein_pct,
+                        soluble_n_mg_100g, free_amino_n_mg_100g, kolbach_index_pct, beta_glucan_65c_mg_100g, viscosity_mpas,
+                        wort_colour_EBC
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         str(sp.get("supplier", "")),
@@ -445,6 +469,11 @@ def _replace_db_seed_data(payload: dict[str, Any]) -> None:
                         float(sp.get("wort_pH", 0.0) or 0.0),
                         float(sp.get("diastatic_power_WK", 0.0) or 0.0),
                         float(sp.get("total_protein_pct", 0.0) or 0.0),
+                        float(sp.get("soluble_n_mg_100g", 0.0) or 0.0),
+                        float(sp.get("free_amino_n_mg_100g", 0.0) or 0.0),
+                        float(sp.get("kolbach_index_pct", 0.0) or 0.0),
+                        float(sp.get("beta_glucan_65c_mg_100g", 0.0) or 0.0),
+                        float(sp.get("viscosity_mpas", 0.0) or 0.0),
                         float(sp.get("wort_colour_EBC", 0.0) or 0.0),
                     ),
                 )
@@ -463,9 +492,14 @@ def _replace_db_seed_data(payload: dict[str, Any]) -> None:
                         wort_pH,
                         diastatic_power_WK,
                         total_protein_pct,
+                        soluble_n_mg_100g,
+                        free_amino_n_mg_100g,
+                        kolbach_index_pct,
+                        beta_glucan_65c_mg_100g,
+                        viscosity_mpas,
                         wort_colour_EBC
                     )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         str(q.get("lot_id", "")),
@@ -478,6 +512,11 @@ def _replace_db_seed_data(payload: dict[str, Any]) -> None:
                         float(q.get("wort_pH", 0.0) or 0.0),
                         float(q.get("diastatic_power_WK", 0.0) or 0.0),
                         float(q.get("total_protein_pct", 0.0) or 0.0),
+                        float(q.get("soluble_n_mg_100g", 0.0) or 0.0),
+                        float(q.get("free_amino_n_mg_100g", 0.0) or 0.0),
+                        float(q.get("kolbach_index_pct", 0.0) or 0.0),
+                        float(q.get("beta_glucan_65c_mg_100g", 0.0) or 0.0),
+                        float(q.get("viscosity_mpas", 0.0) or 0.0),
                         float(q.get("wort_colour_EBC", 0.0) or 0.0),
                     ),
                 )
@@ -545,6 +584,17 @@ def _sample_payload() -> dict[str, Any]:
                             "lot_id": str(qr.get("lot_id", "")),
                             "supplier": str(qr.get("supplier", "")),
                             "mass_kg": remaining_mass_kg,
+                            "moisture_pct": float(qr.get("moisture_pct", 0.0) or 0.0),
+                            "fine_extract_db_pct": float(qr.get("fine_extract_db_pct", 0.0) or 0.0),
+                            "wort_pH": float(qr.get("wort_pH", 0.0) or 0.0),
+                            "diastatic_power_WK": float(qr.get("diastatic_power_WK", 0.0) or 0.0),
+                            "total_protein_pct": float(qr.get("total_protein_pct", 0.0) or 0.0),
+                            "soluble_n_mg_100g": float(qr.get("soluble_n_mg_100g", 0.0) or 0.0),
+                            "free_amino_n_mg_100g": float(qr.get("free_amino_n_mg_100g", 0.0) or 0.0),
+                            "kolbach_index_pct": float(qr.get("kolbach_index_pct", 0.0) or 0.0),
+                            "beta_glucan_65c_mg_100g": float(qr.get("beta_glucan_65c_mg_100g", 0.0) or 0.0),
+                            "viscosity_mpas": float(qr.get("viscosity_mpas", 0.0) or 0.0),
+                            "wort_colour_EBC": float(qr.get("wort_colour_EBC", 0.0) or 0.0),
                         }
                     )
             suppliers_from_queue = _suppliers_from_incoming_queue_rows(queue_rows)
@@ -628,7 +678,22 @@ def _sample_payload() -> dict[str, Any]:
                 is_fully_consumed = bool(r.get("is_fully_consumed", False))
                 if (remaining_mass_kg > 0) and (not is_fully_consumed):
                     incoming_queue.append(
-                        {"lot_id": lot_id, "supplier": supplier_name, "mass_kg": remaining_mass_kg}
+                        {
+                            "lot_id": lot_id,
+                            "supplier": supplier_name,
+                            "mass_kg": remaining_mass_kg,
+                            "moisture_pct": float(r.get("moisture_pct", 0.0) or 0.0),
+                            "fine_extract_db_pct": float(r.get("fine_extract_db_pct", 0.0) or 0.0),
+                            "wort_pH": float(r.get("wort_pH", 0.0) or 0.0),
+                            "diastatic_power_WK": float(r.get("diastatic_power_WK", 0.0) or 0.0),
+                            "total_protein_pct": float(r.get("total_protein_pct", 0.0) or 0.0),
+                            "soluble_n_mg_100g": float(r.get("soluble_n_mg_100g", 0.0) or 0.0),
+                            "free_amino_n_mg_100g": float(r.get("free_amino_n_mg_100g", 0.0) or 0.0),
+                            "kolbach_index_pct": float(r.get("kolbach_index_pct", 0.0) or 0.0),
+                            "beta_glucan_65c_mg_100g": float(r.get("beta_glucan_65c_mg_100g", 0.0) or 0.0),
+                            "viscosity_mpas": float(r.get("viscosity_mpas", 0.0) or 0.0),
+                            "wort_colour_EBC": float(r.get("wort_colour_EBC", 0.0) or 0.0),
+                        }
                     )
             suppliers = _suppliers_from_incoming_queue_rows(queue_rows)
             layers = [
@@ -719,6 +784,9 @@ def _load_incoming_queue_from_db() -> list[dict[str, Any]]:
     rows = fetchall(
         """
         SELECT lot_id, supplier, COALESCE(remaining_mass_kg, mass_kg) AS live_mass_kg
+             , moisture_pct, fine_extract_db_pct, wort_pH, diastatic_power_WK, total_protein_pct
+             , soluble_n_mg_100g, free_amino_n_mg_100g, kolbach_index_pct, beta_glucan_65c_mg_100g, viscosity_mpas
+             , wort_colour_EBC
         FROM incoming_queue
         WHERE COALESCE(is_fully_consumed, FALSE) = FALSE
           AND COALESCE(remaining_mass_kg, mass_kg) > 0
@@ -730,6 +798,17 @@ def _load_incoming_queue_from_db() -> list[dict[str, Any]]:
             "lot_id": str(r.get("lot_id", "")),
             "supplier": str(r.get("supplier", "")),
             "mass_kg": float(r.get("live_mass_kg", 0.0) or 0.0),
+            "moisture_pct": float(r.get("moisture_pct", 0.0) or 0.0),
+            "fine_extract_db_pct": float(r.get("fine_extract_db_pct", 0.0) or 0.0),
+            "wort_pH": float(r.get("wort_pH", 0.0) or 0.0),
+            "diastatic_power_WK": float(r.get("diastatic_power_WK", 0.0) or 0.0),
+            "total_protein_pct": float(r.get("total_protein_pct", 0.0) or 0.0),
+            "soluble_n_mg_100g": float(r.get("soluble_n_mg_100g", 0.0) or 0.0),
+            "free_amino_n_mg_100g": float(r.get("free_amino_n_mg_100g", 0.0) or 0.0),
+            "kolbach_index_pct": float(r.get("kolbach_index_pct", 0.0) or 0.0),
+            "beta_glucan_65c_mg_100g": float(r.get("beta_glucan_65c_mg_100g", 0.0) or 0.0),
+            "viscosity_mpas": float(r.get("viscosity_mpas", 0.0) or 0.0),
+            "wort_colour_EBC": float(r.get("wort_colour_EBC", 0.0) or 0.0),
         }
         for r in rows
     ]
@@ -774,6 +853,21 @@ def _result_to_api_payload(result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _ensure_suppliers_dataframe(inputs: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+    suppliers_df = inputs.get("suppliers", pd.DataFrame())
+    if not suppliers_df.empty and ("supplier" in suppliers_df.columns or "name" in suppliers_df.columns):
+        return inputs
+    inferred_rows: list[dict[str, Any]] = []
+    try:
+        queue_rows = fetchall("SELECT * FROM incoming_queue ORDER BY id")
+        inferred_rows = _suppliers_from_incoming_queue_rows(queue_rows)
+    except Exception:
+        inferred_rows = []
+    if inferred_rows:
+        inputs["suppliers"] = pd.DataFrame(inferred_rows)
+    return inputs
+
+
 DEFAULT_PARAM_RANGES = {
     "moisture_pct": 5.0 - 0.0,
     "fine_extract_db_pct": 83.0 - 81.0,
@@ -784,7 +878,7 @@ DEFAULT_PARAM_RANGES = {
 }
 DISCHARGE_FRACTION_MIN = 0.2
 DISCHARGE_FRACTION_MAX = 0.8
-FIXED_DISCHARGE_TARGET_KG = 12000.0
+FIXED_DISCHARGE_TARGET_KG = 7000.0
 FIXED_DISCHARGE_TOL_KG = 1e-3
 
 
@@ -816,12 +910,12 @@ PARAM_KEYS: list[str] = list(DEFAULT_PARAM_RANGES.keys())
 #   moisture_pct        0.07  — storage/yield; predictable, low brew-day impact
 #   wort_colour_EBC     0.03  — spec parameter; least critical for base-malt blend
 PARAM_WEIGHTS: dict[str, float] = {
-    "moisture_pct":        0.07,
+    "moisture_pct": 0.07,
     "fine_extract_db_pct": 0.25,
-    "wort_pH":             0.20,
-    "diastatic_power_WK":  0.30,
-    "total_protein_pct":   0.15,
-    "wort_colour_EBC":     0.03,
+    "wort_pH": 0.20,
+    "diastatic_power_WK": 0.30,
+    "total_protein_pct": 0.15,
+    "wort_colour_EBC": 0.03,
 }
 # Pre-built weight vector aligned to PARAM_KEYS order.
 _PARAM_WEIGHT_VEC: np.ndarray = np.array(
@@ -841,11 +935,15 @@ def _score_blend_vectorised(
     brewing importance: diastatic_power (0.30) > fine_extract (0.25) >
     wort_pH (0.20) > total_protein (0.15) > moisture (0.07) > colour (0.03).
     """
-    a = np.array([actual.get(k, 0.0)       for k in PARAM_KEYS], dtype=np.float64)
-    t = np.array([target.get(k, 0.0)       for k in PARAM_KEYS], dtype=np.float64)
-    r = np.array([param_ranges.get(k, 1.0) for k in PARAM_KEYS], dtype=np.float64)
+    active_keys = [k for k in PARAM_KEYS if k in target and target.get(k) is not None]
+    if not active_keys:
+        return float("inf")
+    a = np.array([actual.get(k, 0.0) for k in active_keys], dtype=np.float64)
+    t = np.array([target.get(k, 0.0) for k in active_keys], dtype=np.float64)
+    r = np.array([param_ranges.get(k, 1.0) for k in active_keys], dtype=np.float64)
+    w = np.array([PARAM_WEIGHTS.get(k, 1.0 / len(active_keys)) for k in active_keys], dtype=np.float64)
     r = np.where(r == 0.0, 1.0, r)
-    return float(np.sqrt(np.sum(_PARAM_WEIGHT_VEC * ((a - t) / r) ** 2)))
+    return float(np.sqrt(np.sum(w * ((a - t) / r) ** 2)))
 
 
 def _score_batch(
@@ -860,30 +958,28 @@ def _score_batch(
     """
     if not candidates:
         return np.array([], dtype=np.float64)
-    t = np.array([target.get(k, 0.0)       for k in PARAM_KEYS], dtype=np.float64)
-    r = np.array([param_ranges.get(k, 1.0)  for k in PARAM_KEYS], dtype=np.float64)
+    active_keys = [k for k in PARAM_KEYS if k in target and target.get(k) is not None]
+    if not active_keys:
+        return np.full(shape=(len(candidates),), fill_value=np.inf, dtype=np.float64)
+    t = np.array([target.get(k, 0.0) for k in active_keys], dtype=np.float64)
+    r = np.array([param_ranges.get(k, 1.0) for k in active_keys], dtype=np.float64)
+    w = np.array([PARAM_WEIGHTS.get(k, 1.0 / len(active_keys)) for k in active_keys], dtype=np.float64)
     r = np.where(r == 0.0, 1.0, r)
     A = np.array(
-        [[c["blended_params"].get(k, 0.0) for k in PARAM_KEYS] for c in candidates],
+        [[c["blended_params"].get(k, 0.0) for k in active_keys] for c in candidates],
         dtype=np.float64,
     )
-    return np.sqrt(np.sum(_PARAM_WEIGHT_VEC * ((A - t) / r) ** 2, axis=1))
+    return np.sqrt(np.sum(w * ((A - t) / r) ** 2, axis=1))
 
 
 def _diverse_top_k(
     candidates: list[dict[str, Any]],
     k: int = 5,
 ) -> list[dict[str, Any]]:
-    """Maximin diversity selection from the candidate pool.
+    """Diversity-aware top-k with threshold relaxation.
 
-    Picks k candidates that are both high-quality (low score) AND spread across
-    the discharge-fraction space, so the brewer sees genuinely different options.
-
-    Algorithm:
-      1. Sort by objective_score; keep top min(len, k*6, 30) as pool.
-      2. Seed selection with the best-scoring candidate.
-      3. Greedily add the candidate whose minimum distance to the already-selected
-         set is largest (Maximin criterion).
+    Starts with strict thresholds on both discharge-fraction distance and
+    blended-parameter distance, then relaxes gradually only if needed.
     """
     if len(candidates) <= k:
         return candidates
@@ -896,26 +992,67 @@ def _diverse_top_k(
             dtype=np.float64,
         )
 
+    def _param_distance(a: dict[str, Any], b: dict[str, Any]) -> float:
+        aa = a.get("blended_params", {}) or {}
+        bb = b.get("blended_params", {}) or {}
+        keys = [k for k in PARAM_KEYS if k in aa and k in bb]
+        if not keys:
+            return 0.0
+        vals: list[float] = []
+        for key in keys:
+            scale = float(DEFAULT_PARAM_RANGES.get(key, 1.0))
+            if scale <= 0:
+                scale = 1.0
+            vals.append(abs(float(aa.get(key, 0.0)) - float(bb.get(key, 0.0))) / scale)
+        return float(np.linalg.norm(np.array(vals, dtype=np.float64), ord=1))
+
+    selected_indices: list[int] = [0]
     selected: list[dict[str, Any]] = [pool[0]]
-    selected_vecs: list[np.ndarray] = [_frac_vec(pool[0])]
     pool_vecs = [_frac_vec(c) for c in pool]
 
-    for _ in range(k - 1):
-        best_cand = None
-        best_dist = -1.0
-        for i, c in enumerate(pool):
-            if c in selected:
-                continue
-            min_dist = min(np.linalg.norm(pool_vecs[i] - sv) for sv in selected_vecs)
-            if min_dist > best_dist:
-                best_dist = min_dist
-                best_cand = (i, c)
-        if best_cand is None:
-            break
-        selected.append(best_cand[1])
-        selected_vecs.append(pool_vecs[best_cand[0]])
+    min_frac_dist = 0.22
+    min_param_dist = 0.18
+    relax = 0.75
 
-    return selected
+    def _select_pass(frac_thresh: float, param_thresh: float) -> None:
+        while len(selected) < k:
+            best_idx = None
+            best_score = -1.0
+            for i, cand in enumerate(pool):
+                if cand in selected:
+                    continue
+                frac_min = min(
+                    np.linalg.norm(pool_vecs[i] - pool_vecs[j])
+                    for j in selected_indices
+                )
+                param_min = min(_param_distance(cand, s) for s in selected)
+                if frac_min < frac_thresh and param_min < param_thresh:
+                    continue
+                # Prefer candidates far in fraction space, then by param distance.
+                rank_score = frac_min + 0.5 * param_min
+                if rank_score > best_score:
+                    best_score = rank_score
+                    best_idx = i
+            if best_idx is None:
+                break
+            selected.append(pool[best_idx])
+            selected_indices.append(best_idx)
+
+    _select_pass(min_frac_dist, min_param_dist)
+    if len(selected) < k:
+        _select_pass(min_frac_dist * relax, min_param_dist * relax)
+    if len(selected) < k:
+        _select_pass(min_frac_dist * relax * relax, min_param_dist * relax * relax)
+
+    if len(selected) < k:
+        for cand in pool:
+            if len(selected) >= k:
+                break
+            if cand in selected:
+                continue
+            selected.append(cand)
+
+    return selected[:k]
 
 
 def _clip_fraction(v: float) -> float:
@@ -1237,6 +1374,7 @@ def create_app() -> FastAPI:
             target_params=req.target_params,
             iterations=req.iterations,
             seed=req.seed,
+            use_latest_state=True,
         )
         return optimize(opt_req)
 
@@ -1244,6 +1382,13 @@ def create_app() -> FastAPI:
     def process_apply_discharge(req: ProcessApplyDischargeRequest) -> dict[str, Any]:
         _ensure_state_initialized()
         state = get_state()
+        available_now = sum(
+            float(x.get("remaining_mass_kg", x.get("segment_mass_kg", 0.0)))
+            for x in state.get("layers", [])
+        )
+        if available_now + 1e-12 < FIXED_DISCHARGE_TARGET_KG:
+            fill_out = run_fill_only_simulation()
+            state = fill_out.get("state", state)
         before_state = state
         if not req.discharge:
             raise HTTPException(status_code=422, detail="discharge plan is required.")
@@ -1275,6 +1420,15 @@ def create_app() -> FastAPI:
             )
             for s in state.get("silos", [])
         }
+        available_total = float(sum(available_by_silo.values()))
+        if available_total + 1e-12 < FIXED_DISCHARGE_TARGET_KG:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Insufficient available mass after fill simulation for fixed discharge target "
+                    f"{FIXED_DISCHARGE_TARGET_KG:.3f} kg. Currently available: {available_total:.3f} kg."
+                ),
+            )
         normalized_rows = _normalize_discharge_to_target(
             rows=[{"silo_id": sid, "discharge_mass_kg": m} for sid, m in discharge_by_silo.items()],
             available_by_silo=available_by_silo,
@@ -1441,6 +1595,7 @@ def create_app() -> FastAPI:
             target_params=target_params,
             iterations=req.iterations,
             seed=req.seed,
+            use_latest_state=True,
         )
         out = optimize(opt_req)
         execute(
@@ -1511,6 +1666,7 @@ def create_app() -> FastAPI:
             "suppliers": pd.DataFrame(req.suppliers),
             "discharge": pd.DataFrame(req.discharge),
         }
+        inputs = _ensure_suppliers_dataframe(inputs)
         errors = validate_inputs_shape(inputs)
         coa_errors, coa_warnings = validate_supplier_coa(inputs["suppliers"])
         errors.extend(coa_errors)
@@ -1524,6 +1680,7 @@ def create_app() -> FastAPI:
             "suppliers": pd.DataFrame(req.suppliers),
             "discharge": pd.DataFrame(req.discharge),
         }
+        inputs = _ensure_suppliers_dataframe(inputs)
         errors = validate_inputs_shape(inputs)
         coa_errors, coa_warnings = validate_supplier_coa(inputs["suppliers"])
         errors.extend(coa_errors)
@@ -1577,6 +1734,13 @@ def create_app() -> FastAPI:
             "suppliers": pd.DataFrame(req.suppliers),
             "discharge": pd.DataFrame(req.discharge),
         }
+        if bool(req.use_latest_state):
+            _ensure_state_initialized()
+            live = get_state()
+            inputs["silos"] = pd.DataFrame(live.get("silos", []))
+            inputs["layers"] = pd.DataFrame(live.get("layers", []))
+            inputs["suppliers"] = pd.DataFrame(live.get("suppliers", []))
+        inputs = _ensure_suppliers_dataframe(inputs)
         inputs = _ensure_discharge_has_silo_ids(inputs)
         errors = validate_inputs_shape(inputs)
         coa_errors, coa_warnings = validate_supplier_coa(inputs["suppliers"])
@@ -1597,14 +1761,66 @@ def create_app() -> FastAPI:
         )
         available_by_silo = _available_mass_by_silo(layers_df)
         available_total = float(sum(available_by_silo.values()))
+        auto_fill_triggered = False
+        pre_fill_available_kg = available_total
+        post_fill_available_kg = available_total
         if available_total + 1e-12 < FIXED_DISCHARGE_TARGET_KG:
-            raise HTTPException(
-                status_code=422,
-                detail=(
-                    f"Insufficient available mass for fixed optimization target {FIXED_DISCHARGE_TARGET_KG:.3f} kg. "
-                    f"Currently available: {available_total:.3f} kg."
-                ),
+            auto_fill_triggered = True
+            before_fill_state = get_state()
+            fill_out = run_fill_only_simulation()
+            filled_state = fill_out.get("state", {})
+            after_fill_summary = fill_out.get("summary", {})
+            try:
+                _sync_incoming_queue_to_db(filled_state.get("incoming_queue", []))
+            except Exception as e:
+                print(f"[optimize] incoming_queue sync after autofill failed: {e}")
+            fill_event_id = _write_sim_event(
+                event_type="optimize_prefill",
+                action="run_simulation_fill_only",
+                state_before=before_fill_state,
+                state_after=filled_state,
+                total_discharged_mass_kg=0.0,
+                total_remaining_mass_kg=None,
+                incoming_queue_count=int(after_fill_summary.get("incoming_queue", {}).get("count", 0)),
+                incoming_queue_mass_kg=float(after_fill_summary.get("incoming_queue", {}).get("total_mass_kg", 0.0)),
+                meta={"source": "api_optimize_autofill"},
             )
+            try:
+                _sync_layers_to_db(
+                    filled_state,
+                    event_type="optimize_prefill",
+                    sim_event_id=fill_event_id,
+                )
+            except Exception as e:
+                print(f"[optimize] layers sync after autofill failed: {e}")
+            filled_silos = filled_state.get("silos", [])
+            filled_layers = filled_state.get("layers", [])
+            if isinstance(filled_silos, list) and filled_silos:
+                silos_df = pd.DataFrame(filled_silos)
+                inputs["silos"] = silos_df
+            if isinstance(filled_layers, list):
+                layers_df = pd.DataFrame(filled_layers)
+                inputs["layers"] = layers_df
+            filled_suppliers = filled_state.get("suppliers", [])
+            if isinstance(filled_suppliers, list) and filled_suppliers:
+                inputs["suppliers"] = pd.DataFrame(filled_suppliers)
+                suppliers_df = inputs["suppliers"].copy()
+            feasibility_warnings = _compute_feasibility_warnings(
+                layers_df=layers_df,
+                suppliers_df=suppliers_df,
+                target_params=req.target_params,
+            )
+            available_by_silo = _available_mass_by_silo(layers_df)
+            available_total = float(sum(available_by_silo.values()))
+            post_fill_available_kg = available_total
+            if available_total + 1e-12 < FIXED_DISCHARGE_TARGET_KG:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"Insufficient available mass after fill simulation for fixed optimization target "
+                        f"{FIXED_DISCHARGE_TARGET_KG:.3f} kg. Currently available: {available_total:.3f} kg."
+                    ),
+                )
         silo_ids = silos_df["silo_id"].astype(str).tolist()
         rng = random.Random(req.seed)
         total_iter = max(1, req.iterations)
@@ -1711,6 +1927,9 @@ def create_app() -> FastAPI:
             "objective_method": "normalized_weighted_l2_hybrid_search",
             "param_ranges": DEFAULT_PARAM_RANGES,
             "param_weights": PARAM_WEIGHTS,
+            "auto_fill_triggered": bool(auto_fill_triggered),
+            "pre_fill_available_kg": float(pre_fill_available_kg),
+            "post_fill_available_kg": float(post_fill_available_kg),
             "top_candidates": top_candidates,
             "config_used": {
                 "rho_bulk_kg_m3": float(cfg.rho_bulk_kg_m3),

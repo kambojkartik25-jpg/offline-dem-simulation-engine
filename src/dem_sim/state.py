@@ -28,22 +28,33 @@ def _now_iso() -> str:
 
 
 def _normalize_incoming_queue_locked() -> None:
+    def _spec_payload(row: dict[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for key, value in row.items():
+            if key in {"lot_id", "supplier", "mass_kg"}:
+                continue
+            out[key] = value
+        return out
+
     deduped_by_id: dict[str, dict[str, Any]] = {}
     deduped_without_id: list[dict[str, Any]] = []
     for lot in STATE["incoming_queue"]:
         lot_id = str(lot.get("lot_id", ""))
         supplier = str(lot.get("supplier", ""))
         mass_kg = float(lot.get("mass_kg", 0.0))
+        extras = _spec_payload(lot)
         if mass_kg <= 0:
             continue
         if lot_id:
             if lot_id in deduped_by_id:
                 deduped_by_id[lot_id]["mass_kg"] += mass_kg
+                deduped_by_id[lot_id].update(extras)
             else:
                 deduped_by_id[lot_id] = {
                     "lot_id": lot_id,
                     "supplier": supplier,
                     "mass_kg": mass_kg,
+                    **extras,
                 }
             continue
         deduped_without_id.append(
@@ -51,6 +62,7 @@ def _normalize_incoming_queue_locked() -> None:
                 "lot_id": lot_id,
                 "supplier": supplier,
                 "mass_kg": mass_kg,
+                **extras,
             }
         )
     deduped: list[dict[str, Any]] = list(deduped_by_id.values()) + deduped_without_id
@@ -61,9 +73,9 @@ def _normalize_incoming_queue_locked() -> None:
         mass_kg = float(row.get("mass_kg", 0.0))
         if mass_kg <= 0:
             continue
-        normalized.append(
-            {"lot_id": lot_id, "supplier": supplier, "mass_kg": round(mass_kg, 6)}
-        )
+        normalized_row = {"lot_id": lot_id, "supplier": supplier, "mass_kg": round(mass_kg, 6)}
+        normalized_row.update(_spec_payload(row))
+        normalized.append(normalized_row)
     STATE["incoming_queue"] = normalized
 
 
@@ -212,7 +224,7 @@ def summarize_state() -> dict[str, Any]:
             rec["lots"] = active_lots
         queue = deepcopy(STATE["incoming_queue"])
         return {
-            "silos": list(by_silo.values()),
+            "silos": list(by_silo.values()) ,
             "incoming_queue": {
                 "count": len(queue),
                 "total_mass_kg": float(sum(float(x.get("mass_kg", 0.0)) for x in queue)),

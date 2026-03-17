@@ -37,6 +37,11 @@ CREATE TABLE IF NOT EXISTS suppliers (
     wort_pH DOUBLE PRECISION,
     diastatic_power_WK DOUBLE PRECISION,
     total_protein_pct DOUBLE PRECISION,
+    soluble_n_mg_100g DOUBLE PRECISION,
+    free_amino_n_mg_100g DOUBLE PRECISION,
+    kolbach_index_pct DOUBLE PRECISION,
+    beta_glucan_65c_mg_100g DOUBLE PRECISION,
+    viscosity_mpas DOUBLE PRECISION,
     wort_colour_EBC DOUBLE PRECISION,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -53,6 +58,11 @@ CREATE TABLE IF NOT EXISTS incoming_queue (
     wort_pH DOUBLE PRECISION,
     diastatic_power_WK DOUBLE PRECISION,
     total_protein_pct DOUBLE PRECISION,
+    soluble_n_mg_100g DOUBLE PRECISION,
+    free_amino_n_mg_100g DOUBLE PRECISION,
+    kolbach_index_pct DOUBLE PRECISION,
+    beta_glucan_65c_mg_100g DOUBLE PRECISION,
+    viscosity_mpas DOUBLE PRECISION,
     wort_colour_EBC DOUBLE PRECISION,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -167,6 +177,11 @@ def ensure_schema() -> None:
             conn.execute("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS wort_pH DOUBLE PRECISION")
             conn.execute("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS diastatic_power_WK DOUBLE PRECISION")
             conn.execute("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS total_protein_pct DOUBLE PRECISION")
+            conn.execute("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS soluble_n_mg_100g DOUBLE PRECISION")
+            conn.execute("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS free_amino_n_mg_100g DOUBLE PRECISION")
+            conn.execute("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS kolbach_index_pct DOUBLE PRECISION")
+            conn.execute("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS beta_glucan_65c_mg_100g DOUBLE PRECISION")
+            conn.execute("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS viscosity_mpas DOUBLE PRECISION")
             conn.execute("ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS wort_colour_EBC DOUBLE PRECISION")
             conn.execute("ALTER TABLE incoming_queue ADD COLUMN IF NOT EXISTS remaining_mass_kg DOUBLE PRECISION")
             conn.execute("ALTER TABLE incoming_queue ADD COLUMN IF NOT EXISTS is_fully_consumed BOOLEAN NOT NULL DEFAULT FALSE")
@@ -175,6 +190,11 @@ def ensure_schema() -> None:
             conn.execute("ALTER TABLE incoming_queue ADD COLUMN IF NOT EXISTS wort_pH DOUBLE PRECISION")
             conn.execute("ALTER TABLE incoming_queue ADD COLUMN IF NOT EXISTS diastatic_power_WK DOUBLE PRECISION")
             conn.execute("ALTER TABLE incoming_queue ADD COLUMN IF NOT EXISTS total_protein_pct DOUBLE PRECISION")
+            conn.execute("ALTER TABLE incoming_queue ADD COLUMN IF NOT EXISTS soluble_n_mg_100g DOUBLE PRECISION")
+            conn.execute("ALTER TABLE incoming_queue ADD COLUMN IF NOT EXISTS free_amino_n_mg_100g DOUBLE PRECISION")
+            conn.execute("ALTER TABLE incoming_queue ADD COLUMN IF NOT EXISTS kolbach_index_pct DOUBLE PRECISION")
+            conn.execute("ALTER TABLE incoming_queue ADD COLUMN IF NOT EXISTS beta_glucan_65c_mg_100g DOUBLE PRECISION")
+            conn.execute("ALTER TABLE incoming_queue ADD COLUMN IF NOT EXISTS viscosity_mpas DOUBLE PRECISION")
             conn.execute("ALTER TABLE incoming_queue ADD COLUMN IF NOT EXISTS wort_colour_EBC DOUBLE PRECISION")
             conn.execute("UPDATE incoming_queue SET remaining_mass_kg = mass_kg WHERE remaining_mass_kg IS NULL")
             conn.execute("ALTER TABLE layers ADD COLUMN IF NOT EXISTS snapshot_id BIGINT NOT NULL DEFAULT 1")

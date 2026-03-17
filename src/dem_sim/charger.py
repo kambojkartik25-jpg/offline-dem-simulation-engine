@@ -32,6 +32,15 @@ def _next_layer_index(existing_layers: list[dict[str, Any]], silo_id: str) -> in
     return max_idx + 1
 
 
+def _lot_extras(lot: dict[str, Any]) -> dict[str, Any]:
+    extras: dict[str, Any] = {}
+    for key, value in lot.items():
+        if key in {"lot_id", "supplier", "mass_kg"}:
+            continue
+        extras[key] = value
+    return extras
+
+
 def allocate_lots_to_silos(
     lots: list[dict[str, Any]],
     silos: list[dict[str, Any]],
@@ -51,6 +60,7 @@ def allocate_lots_to_silos(
         lot_mass = max(0.0, float(lot.get("mass_kg", 0.0)))
         lot_id = str(lot.get("lot_id", ""))
         supplier = str(lot.get("supplier", ""))
+        extras = _lot_extras(lot)
         if lot_mass <= 0:
             continue
         remaining_lot = lot_mass
@@ -75,7 +85,12 @@ def allocate_lots_to_silos(
             remaining_capacity[sid] = room - alloc
         if remaining_lot > 1e-12:
             incoming_queue.append(
-                {"lot_id": lot_id, "supplier": supplier, "mass_kg": round(remaining_lot, 6)}
+                {
+                    "lot_id": lot_id,
+                    "supplier": supplier,
+                    "mass_kg": round(remaining_lot, 6),
+                    **extras,
+                }
             )
     if incoming_queue:
         warnings.append(
@@ -106,6 +121,7 @@ def allocate_lots_append_to_existing(
         lot_mass = max(0.0, float(lot.get("mass_kg", 0.0)))
         lot_id = str(lot.get("lot_id", ""))
         supplier = str(lot.get("supplier", ""))
+        extras = _lot_extras(lot)
         if lot_mass <= 0:
             continue
         remaining_lot = lot_mass
@@ -132,7 +148,12 @@ def allocate_lots_append_to_existing(
             remaining_capacity[sid] = room - alloc
         if remaining_lot > 1e-12:
             incoming_queue.append(
-                {"lot_id": lot_id, "supplier": supplier, "mass_kg": round(remaining_lot, 6)}
+                {
+                    "lot_id": lot_id,
+                    "supplier": supplier,
+                    "mass_kg": round(remaining_lot, 6),
+                    **extras,
+                }
             )
     if incoming_queue:
         warnings.append(
