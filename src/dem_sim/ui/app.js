@@ -88,6 +88,13 @@ function formatMass(value) {
   return `${Number(value).toFixed(3)} kg`;
 }
 
+function formatEstimatedParam(key, value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "-";
+  if (key === "diastatic_power_WK") return String(Math.round(n));
+  return n.toFixed(2);
+}
+
 function updateScheduleBrewState(brewId, patch) {
   if (!brewId) return;
   const prev = scheduleBrewState.get(brewId) || {
@@ -775,29 +782,45 @@ function renderCandidateTable(payload, options = {}) {
   const mode = options.mode || "studio";
   const scheduleId = String(options.scheduleId || "").trim();
   const brewId = String(options.brewId || "").trim();
+  // Keep Standard scenario at the end (Scenario 5), sort only optimized entries.
+  const indexed = candidates.map((c, originalIndex) => ({ c, originalIndex }));
+  const optimized = indexed.filter((x) => x.c?.scenario_type !== "standard_equal_split");
+  const standard = indexed.find((x) => x.c?.scenario_type === "standard_equal_split");
   if (sortKey === "discharged") {
-    candidates.sort(
-      (a, b) => Number(b.total_discharged_mass_kg || 0) - Number(a.total_discharged_mass_kg || 0)
+    optimized.sort(
+      (a, b) => Number(b.c?.total_discharged_mass_kg || 0) - Number(a.c?.total_discharged_mass_kg || 0)
     );
   }
+  const orderedCandidates = standard ? [...optimized, standard] : optimized;
 
-  if (!candidates.length) {
+  if (!orderedCandidates.length) {
     targetWrapEl.innerHTML = "";
     return;
   }
-  const rows = candidates
+  const rows = orderedCandidates
     .map(
-      (c, idx) => `
+      ({ c, originalIndex }, idx) => `
     <tr>
       <td>${idx + 1}</td>
-      <td>${Number(c.total_discharged_mass_kg).toFixed(3)}</td>
-      <td>${(c.recommended_discharge || []).map((r) => `${r.silo_id}:${Number(r.discharge_fraction).toFixed(3)}`).join(" | ")}</td>
+      <td>${c?.scenario_type === "standard_equal_split" ? "Standard (Equal Split)" : "Optimized"}</td>
+      <td>${Number(c.total_discharged_mass_kg || 0).toFixed(3)}</td>
+      <td>${
+        c?.feasible === false
+          ? `<span style="color:#b91c1c;">Not feasible: ${String(c?.reason || "insufficient mass")}</span>`
+          : (c.recommended_discharge || [])
+              .map((r) => `${r.silo_id}:${Number(r.discharge_mass_kg || 0).toFixed(3)} kg`)
+              .join(" | ")
+      }</td>
       <td>${Object.entries(c.blended_params || {})
-        .map(([k, v]) => `${k}:${Number(v).toFixed(3)}`)
+        .map(([k, v]) => `${k}:${formatEstimatedParam(k, v)}`)
         .join(" | ")}</td>
-      <td><button class="btn btn-alt candidate-discharge-btn" data-candidate-index="${idx}" data-context-mode="${mode}" data-schedule-id="${scheduleId}" data-brew-id="${brewId}">${
-        mode === "schedule" ? "Discharge Brew" : "Discharge"
-      }</button></td>
+      <td>${
+        c?.feasible === false
+          ? '<span style="color:var(--muted);">N/A</span>'
+          : `<button class="btn btn-alt candidate-discharge-btn" data-candidate-index="${originalIndex}" data-context-mode="${mode}" data-schedule-id="${scheduleId}" data-brew-id="${brewId}">${
+              mode === "schedule" ? "Discharge Brew" : "Discharge"
+            }</button>`
+      }</td>
     </tr>
   `
     )
@@ -806,9 +829,10 @@ function renderCandidateTable(payload, options = {}) {
     <table>
       <thead>
         <tr>
-          <th>Rank</th>
+          <th>Scenario</th>
+          <th>Type</th>
           <th>Discharged (kg)</th>
-          <th>Recommended Fractions</th>
+          <th>Recommended Discharge (kg)</th>
           <th>Blended Params</th>
           <th>Action</th>
         </tr>
@@ -1041,8 +1065,10 @@ async function optimizeBlend() {
     lines.push(`Method: ${data.objective_method}`);
     lines.push("Top candidates:");
     top.forEach((c, i) => {
+      const label = c?.scenario_type === "standard_equal_split" ? "standard" : "optimized";
+      const feasible = c?.feasible === false ? " (infeasible)" : "";
       lines.push(
-        `${i + 1}. discharged=${Number(c.total_discharged_mass_kg).toFixed(3)}kg`
+        `${i + 1}. [${label}] discharged=${Number(c.total_discharged_mass_kg || 0).toFixed(3)}kg${feasible}`
       );
     });
     lines.push("");

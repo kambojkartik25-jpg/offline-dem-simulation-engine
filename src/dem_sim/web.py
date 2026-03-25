@@ -1229,6 +1229,94 @@ def _normalize_discharge_to_target(
     return out
 
 
+def _build_standard_equal_split_candidate(
+    *,
+    inputs: dict[str, pd.DataFrame],
+    cfg: RunConfig,
+    target_params: dict[str, float],
+    available_by_silo: dict[str, float],
+    target_total_kg: float,
+) -> dict[str, Any]:
+    """Build a non-optimized equal-split baseline candidate.
+
+    If any silo has insufficient available mass for equal split, return an
+    infeasible record with shortage details and do not run the simulator.
+    """
+    silo_ids = sorted(str(sid) for sid in available_by_silo.keys())
+    if not silo_ids:
+        return {
+            "scenario_type": "standard_equal_split",
+            "feasible": False,
+            "reason": "no_silos_available",
+            "insufficient_silos": [],
+        }
+    required_per_silo = float(target_total_kg) / float(len(silo_ids))
+    insufficient: list[dict[str, Any]] = []
+    for sid in silo_ids:
+        avail = float(available_by_silo.get(sid, 0.0))
+        if avail + 1e-12 < required_per_silo:
+            insufficient.append(
+                {
+                    "silo_id": sid,
+                    "required_mass_kg": round(required_per_silo, 2),
+                    "available_mass_kg": round(avail, 2),
+                    "shortage_mass_kg": round(required_per_silo - avail, 2),
+                }
+            )
+
+    if insufficient:
+        shortage_summary = "; ".join(
+            f"{x['silo_id']}: required {x['required_mass_kg']:.2f} kg, available {x['available_mass_kg']:.2f} kg, shortage {x['shortage_mass_kg']:.2f} kg"
+            for x in insufficient
+        )
+        return {
+            "scenario_type": "standard_equal_split",
+            "feasible": False,
+            "reason": "insufficient_mass_for_equal_split",
+            "reason_detail": shortage_summary,
+            "required_per_silo_kg": round(required_per_silo, 2),
+            "insufficient_silos": insufficient,
+        }
+
+    standard_rows = [
+        {"silo_id": sid, "discharge_mass_kg": round(required_per_silo, 6)}
+        for sid in silo_ids
+    ]
+    candidate_inputs = dict(inputs)
+    candidate_inputs["discharge"] = pd.DataFrame(standard_rows)
+    result = run_blend(candidate_inputs, cfg)
+    discharged_total = float(result["total_discharged_mass_kg"])
+    score = _score_blend_vectorised(
+        actual=result["total_blended_params"],
+        target=target_params,
+        param_ranges=DEFAULT_PARAM_RANGES,
+    )
+    discharge_rows = [
+        {
+            "silo_id": sid,
+            "discharge_mass_kg": round(required_per_silo, 6),
+            "discharge_fraction": round(
+                (required_per_silo / float(available_by_silo.get(sid, 0.0)))
+                if float(available_by_silo.get(sid, 0.0)) > 1e-12
+                else 0.0,
+                6,
+            ),
+        }
+        for sid in silo_ids
+    ]
+    return {
+        "scenario_type": "standard_equal_split",
+        "feasible": True,
+        "required_per_silo_kg": round(required_per_silo, 2),
+        "objective_score": float(score),
+        "recommended_discharge": discharge_rows,
+        "blended_params": {
+            k: float(v) for k, v in result["total_blended_params"].items()
+        },
+        "total_discharged_mass_kg": discharged_total,
+    }
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="DEM Simulation API", version="0.1.0")
     app.add_middleware(
@@ -1911,7 +1999,17 @@ def create_app() -> FastAPI:
             )
             for cand, sc in zip(top_candidates, batch_scores):
                 cand["objective_score"] = float(sc)
-        top_candidates = _diverse_top_k(top_candidates, k=5)
+        top_candidates = _diverse_top_k(top_candidates, k=4)
+        for cand in top_candidates:
+            cand["scenario_type"] = "optimized"
+        standard_candidate = _build_standard_equal_split_candidate(
+            inputs=inputs,
+            cfg=cfg,
+            target_params=req.target_params,
+            available_by_silo=available_by_silo,
+            target_total_kg=FIXED_DISCHARGE_TARGET_KG,
+        )
+        top_candidates = top_candidates + [standard_candidate]
         out = {
             "objective_score": best_score,
             "recommended_discharge": best_discharge,
@@ -1931,6 +2029,7 @@ def create_app() -> FastAPI:
             "pre_fill_available_kg": float(pre_fill_available_kg),
             "post_fill_available_kg": float(post_fill_available_kg),
             "top_candidates": top_candidates,
+            "standard_scenario": standard_candidate,
             "config_used": {
                 "rho_bulk_kg_m3": float(cfg.rho_bulk_kg_m3),
                 "grain_diameter_m": float(cfg.grain_diameter_m),
