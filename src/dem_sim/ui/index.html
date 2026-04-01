@@ -106,11 +106,11 @@
           <div class="panel-title">Blend Optimization Target</div>
           <div class="target-grid">
             <label>Moisture <input id="t_moisture_pct" type="number" step="0.001" value="4.5" /></label>
-            <label>Fine Extract <input id="t_fine_extract_db_pct" type="number" step="0.001" value="81.8" /></label>
-            <label>Wort pH <input id="t_wort_pH" type="number" step="0.001" value="5.9" /></label>
-            <label>Diastatic Power <input id="t_diastatic_power_WK" type="number" step="0.001" value="330" /></label>
-            <label>Total Protein <input id="t_total_protein_pct" type="number" step="0.001" value="10.7" /></label>
-            <label>Wort Colour <input id="t_wort_colour_EBC" type="number" step="0.001" value="4.5" /></label>
+            <label>Fine Extract <input id="t_fine_extract_db_pct" type="number" step="0.001" value="81.0" /></label>
+            <label>Wort pH <input id="t_wort_pH" type="number" step="0.001" value="5.80" /></label>
+            <label>Diastatic Power <input id="t_diastatic_power_WK" type="number" step="0.001" value="250" /></label>
+            <label>Total Protein <input id="t_total_protein_pct" type="number" step="0.001" value="10.8" /></label>
+            <label>Wort Colour <input id="t_wort_colour_EBC" type="number" step="0.001" value="3.5" /></label>
             <label>Search Preset
               <select id="opt_preset">
                 <option value="fast">Fast</option>
@@ -118,7 +118,7 @@
                 <option value="aggressive">Aggressive</option>
               </select>
             </label>
-            <label>Iterations <input id="opt_iterations" type="number" step="1" value="120" /></label>
+            <label>Iterations <input id="opt_iterations" type="number" step="1" value="80" /></label>
             <label>Seed <input id="opt_seed" type="number" step="1" value="42" /></label>
           </div>
           <div class="panel-title top-gap">Top Candidates</div>
@@ -230,7 +230,7 @@
               <label>Brew
                 <select id="sched_opt_brew_id"></select>
               </label>
-              <label>Iterations <input id="sched_opt_iterations" type="number" step="1" value="120" /></label>
+              <label>Iterations <input id="sched_opt_iterations" type="number" step="1" value="80" /></label>
               <label>Seed <input id="sched_opt_seed" type="number" step="1" value="42" /></label>
             </div>
             <div class="top-gap">
@@ -257,6 +257,6 @@
     </section>
   </div>
 
-  <script src="/ui/app.js?v=10"></script>
+  <script src="/ui/app.js?v=16"></script>
 </body>
 </html>

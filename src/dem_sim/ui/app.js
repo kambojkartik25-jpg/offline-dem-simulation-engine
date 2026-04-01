@@ -71,6 +71,17 @@ let isOptimizing = false;
 let currentScheduleId = "";
 let scheduleSimulationSnapshot = null;
 const scheduleBrewState = new Map();
+const HIDDEN_BLEND_PARAMS = new Set([
+  "soluble_n_mg_100g",
+  "free_amino_n_mg_100g",
+  "kolbach_index_pct",
+  "beta_glucan_65c_mg_100g",
+  "viscosity_mpas",
+]);
+
+function visibleBlendEntries(obj) {
+  return Object.entries(obj || {}).filter(([k]) => !HIDDEN_BLEND_PARAMS.has(String(k)));
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -495,7 +506,7 @@ function renderSummary(result) {
   const cards = [
     { key: "Total Discharged (kg)", value: total },
     { key: "Total Remaining (kg)", value: remaining },
-    ...Object.entries(blend).map(([k, v]) => ({ key: k, value: Number(v).toFixed(4) })),
+    ...visibleBlendEntries(blend).map(([k, v]) => ({ key: k, value: Number(v).toFixed(4) })),
   ];
   summaryCardsEl.innerHTML = cards
     .map(
@@ -811,7 +822,7 @@ function renderCandidateTable(payload, options = {}) {
               .map((r) => `${r.silo_id}:${Number(r.discharge_mass_kg || 0).toFixed(3)} kg`)
               .join(" | ")
       }</td>
-      <td>${Object.entries(c.blended_params || {})
+      <td>${visibleBlendEntries(c.blended_params || {})
         .map(([k, v]) => `${k}:${formatEstimatedParam(k, v)}`)
         .join(" | ")}</td>
       <td>${
@@ -1041,9 +1052,10 @@ async function optimizeBlend() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         target_params: targetParamsFromUI(),
-        iterations: Number(document.getElementById("opt_iterations").value || 120),
+        iterations: Number(document.getElementById("opt_iterations").value || 80),
         seed: Number(optSeedEl?.value || 42),
         config: payloadSafe.config || {},
+        include_all_candidates: true,
       }),
     });
     const data = await r.json();
@@ -1223,7 +1235,7 @@ async function optimizeScheduleItemFromTab() {
     schedOptimizeBtn.textContent = "Optimizing...";
     const scheduleId = String(document.getElementById("sched_opt_schedule_id")?.value || "").trim();
     const brewId = String(schedOptBrewIdEl?.value || "").trim();
-    const iterations = Number(document.getElementById("sched_opt_iterations")?.value || 120);
+    const iterations = Number(document.getElementById("sched_opt_iterations")?.value || 80);
     const seed = Number(document.getElementById("sched_opt_seed")?.value || 42);
     if (!scheduleId || !brewId) {
       throw new Error("schedule_id and brew_id are required for optimize schedule.");
@@ -1232,9 +1244,20 @@ async function optimizeScheduleItemFromTab() {
     const r = await fetch(`/api/schedules/${encodeURIComponent(scheduleId)}/items/${encodeURIComponent(brewId)}/optimize`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ iterations, seed, config: payloadSafe.config || {} }),
+      body: JSON.stringify({
+        iterations,
+        seed,
+        config: payloadSafe.config || {},
+        include_all_candidates: true,
+      }),
     });
-    const data = await r.json();
+    const raw = await r.text();
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      data = { detail: raw || `HTTP ${r.status}` };
+    }
     if (!r.ok) {
       printScheduleDebug(schedOptimizationOutEl, data);
       if (schedOptStatusEl) { schedOptStatusEl.textContent = "Failed"; }

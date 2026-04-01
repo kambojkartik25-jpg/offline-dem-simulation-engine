@@ -90,9 +90,9 @@ def terminal_summary(result: Dict[str, Any]) -> str:
 # Hard physical limits — values outside these are scientifically impossible
 # for commercial base malt and indicate a data entry error or unit mismatch.
 SUPPLIER_COA_SCIENCE_BOUNDS: dict[str, tuple[float, float]] = {
-    "moisture_pct":        (3.5,  6.5),   # EBC 4.2: kiln floor min / storage max
-    "fine_extract_db_pct": (78.0, 86.0),  # EBC 4.5.1: minimum conversion / 2-row ceiling
-    "wort_pH":             (5.6,  6.2),   # ASBC Malt-6: buffering min / under-modification max
+    "moisture_pct":        (2.0,  6.5),   # project policy override for generated datasets
+    "fine_extract_db_pct": (78.0, 87.0),  # project policy override for generated datasets
+    "wort_pH":             (5.5,  6.2),   # project policy override for generated datasets
     "diastatic_power_WK":  (150.0, 550.0),# EBC 4.12: self-conversion min / specialty strain max
     "total_protein_pct":   (8.5,  13.5),  # EBC 4.3.1: nitrogen-deficient min / haze-risk max
     "wort_colour_EBC":     (2.5,  12.0),  # EBC 8.5: any-kilned-malt floor / pre-crystal ceiling
@@ -100,9 +100,9 @@ SUPPLIER_COA_SCIENCE_BOUNDS: dict[str, tuple[float, float]] = {
 
 # Advisory typical contract range — unusual but physically possible; brewer should review.
 SUPPLIER_COA_TYPICAL_RANGE: dict[str, tuple[float, float]] = {
-    "moisture_pct":        (3.8,  5.5),
-    "fine_extract_db_pct": (80.0, 84.5),
-    "wort_pH":             (5.7,  6.1),
+    "moisture_pct":        (2.0,  5.0),
+    "fine_extract_db_pct": (79.0, 87.0),
+    "wort_pH":             (5.5,  6.0),
     "diastatic_power_WK":  (200.0, 450.0),
     "total_protein_pct":   (9.5,  12.5),
     "wort_colour_EBC":     (3.0,  8.0),

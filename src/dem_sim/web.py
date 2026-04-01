@@ -72,11 +72,6 @@ def _suppliers_from_incoming_queue_rows(rows: list[dict[str, Any]]) -> list[dict
             "wort_pH": _alias_float(r, "wort_pH", "wort_ph"),
             "diastatic_power_WK": _alias_float(r, "diastatic_power_WK", "diastatic_power_wk"),
             "total_protein_pct": float(r.get("total_protein_pct", 0.0) or 0.0),
-            "soluble_n_mg_100g": float(r.get("soluble_n_mg_100g", 0.0) or 0.0),
-            "free_amino_n_mg_100g": float(r.get("free_amino_n_mg_100g", 0.0) or 0.0),
-            "kolbach_index_pct": float(r.get("kolbach_index_pct", 0.0) or 0.0),
-            "beta_glucan_65c_mg_100g": float(r.get("beta_glucan_65c_mg_100g", 0.0) or 0.0),
-            "viscosity_mpas": float(r.get("viscosity_mpas", 0.0) or 0.0),
             "wort_colour_EBC": _alias_float(r, "wort_colour_EBC", "wort_colour_ebc"),
         }
     return list(supplier_agg.values())
@@ -262,9 +257,10 @@ class RunRequest(BaseModel):
 
 class OptimizeRequest(RunRequest):
     target_params: dict[str, float] = Field(default_factory=dict)
-    iterations: int = 120
+    iterations: int = 80
     seed: int = 42
     use_latest_state: bool = False
+    include_all_candidates: bool = False
 
 
 class ProcessRunSimulationRequest(BaseModel):
@@ -276,9 +272,10 @@ class ProcessRunSimulationRequest(BaseModel):
 
 class ProcessOptimizeRequest(BaseModel):
     target_params: dict[str, float] = Field(default_factory=dict)
-    iterations: int = 120
+    iterations: int = 80
     seed: int = 42
     config: dict[str, Any] = Field(default_factory=dict)
+    include_all_candidates: bool = False
 
 
 class ProcessApplyDischargeRequest(BaseModel):
@@ -288,9 +285,9 @@ class ProcessApplyDischargeRequest(BaseModel):
 
 class GenerateRandomDataRequest(BaseModel):
     seed: int = 42
-    silos_count: int = 3
+    silos_count: int = 6
     lots_count: int = 100
-    lot_size_kg: float = 2000.0
+    lot_size_kg: float = 25000.0
 
 
 class GenerateScheduleRequest(BaseModel):
@@ -302,9 +299,10 @@ class GenerateScheduleRequest(BaseModel):
 
 
 class ScheduleOptimizeRequest(BaseModel):
-    iterations: int = 120
+    iterations: int = 80
     seed: int = 42
     config: dict[str, Any] = Field(default_factory=dict)
+    include_all_candidates: bool = False
 
 
 class ScheduleApplyRequest(BaseModel):
@@ -313,12 +311,12 @@ class ScheduleApplyRequest(BaseModel):
 
 
 DEFAULT_SCHEDULE_TARGET_PARAMS = {
-    "moisture_pct": 4.35,
-    "fine_extract_db_pct": 82.40,
-    "wort_pH": 5.89,
-    "diastatic_power_WK": 332.0,
-    "total_protein_pct": 10.60,
-    "wort_colour_EBC": 4.40,
+    "moisture_pct": 4.50,
+    "fine_extract_db_pct": 81.00,
+    "wort_pH": 5.80,
+    "diastatic_power_WK": 250.0,
+    "total_protein_pct": 10.80,
+    "wort_colour_EBC": 3.50,
 }
 
 
@@ -331,13 +329,15 @@ def _generate_random_payload(
     lot_size_kg = max(1.0, float(lot_size_kg))
 
     silos: list[dict[str, Any]] = []
+    fixed_body_diameter_m = 3.1
+    fixed_outlet_diameter_m = 0.2
     for i in range(silos_count):
         silos.append(
             {
                 "silo_id": f"S{i+1}",
-                "capacity_kg": float(8000.0),
-                "body_diameter_m": round(rng.uniform(2.8, 3.4), 3),
-                "outlet_diameter_m": round(rng.uniform(0.18, 0.23), 3),
+                "capacity_kg": float(100000.0),
+                "body_diameter_m": float(fixed_body_diameter_m),
+                "outlet_diameter_m": float(fixed_outlet_diameter_m),
                 "initial_mass_kg": 0.0,
             }
         )
@@ -345,27 +345,18 @@ def _generate_random_payload(
     spec_ranges = {
         # One-sided spec style inputs with broader bands for visible optimization diversity.
         # We intentionally keep variability on both sides of the threshold.
-        "moisture_pct": {"target": 5.0, "low": 3.8, "high": 5.8, "has_range": False},              # < 5.0 preferred
-        "fine_extract_db_pct": {"target": 81.0, "low": 80.0, "high": 84.0, "has_range": False},    # > 81.0 preferred
-        "wort_pH": {"target": 5.9, "low": 5.8, "high": 6.1, "has_range": True},
-        "diastatic_power_WK": {"target": 300.0, "low": 280.0, "high": 380.0, "has_range": False},  # > 300 preferred
-        "total_protein_pct": {"target": 10.7, "low": 9.5, "high": 12.0, "has_range": True},
-        "soluble_n_mg_100g": {"target": 710.0, "low": 640.0, "high": 740.0, "has_range": True},
-        "free_amino_n_mg_100g": {"target": 150.0, "low": 130.0, "high": 210.0, "has_range": False},  # > 150 preferred
-        "kolbach_index_pct": {"target": 41.0, "low": 39.0, "high": 45.0, "has_range": True},
-        "beta_glucan_65c_mg_100g": {"target": 100.0, "low": 60.0, "high": 170.0, "has_range": False},  # < 100 preferred
-        "viscosity_mpas": {"target": 1.55, "low": 1.10, "high": 1.80, "has_range": False},            # < 1.55 preferred
-        "wort_colour_EBC": {"target": 4.5, "low": 4.0, "high": 5.0, "has_range": True},
+        "moisture_pct": {"low": 2.0, "high": 5.0},
+        "fine_extract_db_pct": {"low": 79.0, "high": 87.0},
+        "wort_pH": {"low": 5.5, "high": 6.0},
+        "diastatic_power_WK": {"low": 200.0, "high": 325.0},
+        "total_protein_pct": {"low": 9.5, "high": 11.5},
+        "wort_colour_EBC": {"low": 2.7, "high": 4.5},
     }
 
     def _sample_param(key: str) -> float:
         spec = spec_ranges[key]
         low = float(spec["low"])
         high = float(spec["high"])
-        target = float(spec["target"])
-        has_range = bool(spec.get("has_range", False))
-        if has_range:
-            return float(rng.triangular(low, high, target))
         return float(rng.uniform(low, high))
 
     suppliers_rows: list[dict[str, Any]] = []
@@ -379,11 +370,6 @@ def _generate_random_payload(
             "wort_pH": round(_sample_param("wort_pH"), 3),
             "diastatic_power_WK": round(_sample_param("diastatic_power_WK"), 3),
             "total_protein_pct": round(_sample_param("total_protein_pct"), 3),
-            "soluble_n_mg_100g": round(_sample_param("soluble_n_mg_100g"), 3),
-            "free_amino_n_mg_100g": round(_sample_param("free_amino_n_mg_100g"), 3),
-            "kolbach_index_pct": round(_sample_param("kolbach_index_pct"), 3),
-            "beta_glucan_65c_mg_100g": round(_sample_param("beta_glucan_65c_mg_100g"), 3),
-            "viscosity_mpas": round(_sample_param("viscosity_mpas"), 3),
             "wort_colour_EBC": round(_sample_param("wort_colour_EBC"), 3),
         }
         incoming_queue.append(
@@ -396,11 +382,6 @@ def _generate_random_payload(
                 "wort_pH": float(lot_spec["wort_pH"]),
                 "diastatic_power_WK": float(lot_spec["diastatic_power_WK"]),
                 "total_protein_pct": float(lot_spec["total_protein_pct"]),
-                "soluble_n_mg_100g": float(lot_spec["soluble_n_mg_100g"]),
-                "free_amino_n_mg_100g": float(lot_spec["free_amino_n_mg_100g"]),
-                "kolbach_index_pct": float(lot_spec["kolbach_index_pct"]),
-                "beta_glucan_65c_mg_100g": float(lot_spec["beta_glucan_65c_mg_100g"]),
-                "viscosity_mpas": float(lot_spec["viscosity_mpas"]),
                 "wort_colour_EBC": float(lot_spec["wort_colour_EBC"]),
             }
         )
@@ -418,7 +399,7 @@ def _generate_random_payload(
             "beverloo_k": 1.4,
             "gravity_m_s2": 9.81,
             "sigma_m": 0.12,
-            "steps": 2000,
+            "steps": 800,
             "auto_adjust": True,
             "moisture_beta": 0.0,
             "sigma_alpha": 0.0,
@@ -589,11 +570,6 @@ def _sample_payload() -> dict[str, Any]:
                             "wort_pH": float(qr.get("wort_pH", 0.0) or 0.0),
                             "diastatic_power_WK": float(qr.get("diastatic_power_WK", 0.0) or 0.0),
                             "total_protein_pct": float(qr.get("total_protein_pct", 0.0) or 0.0),
-                            "soluble_n_mg_100g": float(qr.get("soluble_n_mg_100g", 0.0) or 0.0),
-                            "free_amino_n_mg_100g": float(qr.get("free_amino_n_mg_100g", 0.0) or 0.0),
-                            "kolbach_index_pct": float(qr.get("kolbach_index_pct", 0.0) or 0.0),
-                            "beta_glucan_65c_mg_100g": float(qr.get("beta_glucan_65c_mg_100g", 0.0) or 0.0),
-                            "viscosity_mpas": float(qr.get("viscosity_mpas", 0.0) or 0.0),
                             "wort_colour_EBC": float(qr.get("wort_colour_EBC", 0.0) or 0.0),
                         }
                     )
@@ -624,7 +600,7 @@ def _sample_payload() -> dict[str, Any]:
                     "beverloo_k": 1.4,
                     "gravity_m_s2": 9.81,
                     "sigma_m": 0.12,
-                    "steps": 2000,
+                    "steps": 800,
                     "auto_adjust": True,
                     "moisture_beta": 0.0,
                     "sigma_alpha": 0.0,
@@ -687,11 +663,6 @@ def _sample_payload() -> dict[str, Any]:
                             "wort_pH": float(r.get("wort_pH", 0.0) or 0.0),
                             "diastatic_power_WK": float(r.get("diastatic_power_WK", 0.0) or 0.0),
                             "total_protein_pct": float(r.get("total_protein_pct", 0.0) or 0.0),
-                            "soluble_n_mg_100g": float(r.get("soluble_n_mg_100g", 0.0) or 0.0),
-                            "free_amino_n_mg_100g": float(r.get("free_amino_n_mg_100g", 0.0) or 0.0),
-                            "kolbach_index_pct": float(r.get("kolbach_index_pct", 0.0) or 0.0),
-                            "beta_glucan_65c_mg_100g": float(r.get("beta_glucan_65c_mg_100g", 0.0) or 0.0),
-                            "viscosity_mpas": float(r.get("viscosity_mpas", 0.0) or 0.0),
                             "wort_colour_EBC": float(r.get("wort_colour_EBC", 0.0) or 0.0),
                         }
                     )
@@ -731,7 +702,7 @@ def _sample_payload() -> dict[str, Any]:
                     "beverloo_k": 1.4,
                     "gravity_m_s2": 9.81,
                     "sigma_m": 0.12,
-                    "steps": 2000,
+                    "steps": 800,
                     "auto_adjust": True,
                     "moisture_beta": 0.0,
                     "sigma_alpha": 0.0,
@@ -771,7 +742,7 @@ def _sample_payload() -> dict[str, Any]:
             "beverloo_k": 1.4,
             "gravity_m_s2": 9.81,
             "sigma_m": 0.12,
-            "steps": 2000,
+            "steps": 800,
             "auto_adjust": True,
             "moisture_beta": 0.0,
             "sigma_alpha": 0.0,
@@ -803,11 +774,6 @@ def _load_incoming_queue_from_db() -> list[dict[str, Any]]:
             "wort_pH": float(r.get("wort_pH", 0.0) or 0.0),
             "diastatic_power_WK": float(r.get("diastatic_power_WK", 0.0) or 0.0),
             "total_protein_pct": float(r.get("total_protein_pct", 0.0) or 0.0),
-            "soluble_n_mg_100g": float(r.get("soluble_n_mg_100g", 0.0) or 0.0),
-            "free_amino_n_mg_100g": float(r.get("free_amino_n_mg_100g", 0.0) or 0.0),
-            "kolbach_index_pct": float(r.get("kolbach_index_pct", 0.0) or 0.0),
-            "beta_glucan_65c_mg_100g": float(r.get("beta_glucan_65c_mg_100g", 0.0) or 0.0),
-            "viscosity_mpas": float(r.get("viscosity_mpas", 0.0) or 0.0),
             "wort_colour_EBC": float(r.get("wort_colour_EBC", 0.0) or 0.0),
         }
         for r in rows
@@ -834,9 +800,7 @@ def _result_to_api_payload(result: dict[str, Any]) -> dict[str, Any]:
     return {
         "total_discharged_mass_kg": float(result["total_discharged_mass_kg"]),
         "total_remaining_mass_kg": float(result["total_remaining_mass_kg"]),
-        "total_blended_params": {
-            k: float(v) for k, v in result["total_blended_params"].items()
-        },
+        "total_blended_params": _visible_blended_params(result["total_blended_params"]),
         "silo_state_ledger": result["df_silo_state_ledger"].to_dict(orient="records"),
         "per_silo": {
             silo_id: {
@@ -844,9 +808,9 @@ def _result_to_api_payload(result: dict[str, Any]) -> dict[str, Any]:
                 "mass_flow_rate_kg_s": float(r["mass_flow_rate_kg_s"]),
                 "discharge_time_s": float(r["discharge_time_s"]),
                 "sigma_m": float(r["sigma_m"]),
-                "blended_params_per_silo": {
-                    k: float(v) for k, v in r["blended_params_per_silo"].items()
-                },
+                "blended_params_per_silo": _visible_blended_params(
+                    r["blended_params_per_silo"]
+                ),
             }
             for silo_id, r in result["per_silo"].items()
         },
@@ -876,10 +840,34 @@ DEFAULT_PARAM_RANGES = {
     "total_protein_pct": 11.2 - 10.2,
     "wort_colour_EBC": 4.7 - 4.3,
 }
-DISCHARGE_FRACTION_MIN = 0.2
-DISCHARGE_FRACTION_MAX = 0.8
-FIXED_DISCHARGE_TARGET_KG = 7000.0
+DISCHARGE_FRACTION_MIN = 0.35
+DISCHARGE_FRACTION_MAX = 0.65
+FIXED_DISCHARGE_TARGET_KG = 9000.0
 FIXED_DISCHARGE_TOL_KG = 1e-3
+TARGET_OBJECTIVE_MODE: dict[str, str] = {
+    # One-sided objective rules:
+    # - "max": penalty only when actual > target
+    # - "min": penalty only when actual < target
+    # Any missing key defaults to "exact".
+    "moisture_pct": "max",
+    "fine_extract_db_pct": "min",
+    "diastatic_power_WK": "min",
+}
+HIDDEN_BLEND_PARAM_KEYS: set[str] = {
+    "soluble_n_mg_100g",
+    "free_amino_n_mg_100g",
+    "kolbach_index_pct",
+    "beta_glucan_65c_mg_100g",
+    "viscosity_mpas",
+}
+
+
+def _visible_blended_params(params: dict[str, Any]) -> dict[str, float]:
+    return {
+        str(k): float(v)
+        for k, v in (params or {}).items()
+        if str(k) not in HIDDEN_BLEND_PARAM_KEYS
+    }
 
 
 def _score_blend(
@@ -893,7 +881,14 @@ def _score_blend(
         scale = float(param_ranges.get(key, 1.0))
         if scale <= 0:
             scale = 1.0
-        score += ((a - float(t)) / scale) ** 2
+        mode = str(TARGET_OBJECTIVE_MODE.get(str(key), "exact"))
+        if mode == "max":
+            diff = max(0.0, a - float(t))
+        elif mode == "min":
+            diff = max(0.0, float(t) - a)
+        else:
+            diff = a - float(t)
+        score += (diff / scale) ** 2
     return score
 
 
@@ -943,7 +938,14 @@ def _score_blend_vectorised(
     r = np.array([param_ranges.get(k, 1.0) for k in active_keys], dtype=np.float64)
     w = np.array([PARAM_WEIGHTS.get(k, 1.0 / len(active_keys)) for k in active_keys], dtype=np.float64)
     r = np.where(r == 0.0, 1.0, r)
-    return float(np.sqrt(np.sum(w * ((a - t) / r) ** 2)))
+    delta = a - t
+    for i, key in enumerate(active_keys):
+        mode = str(TARGET_OBJECTIVE_MODE.get(str(key), "exact"))
+        if mode == "max":
+            delta[i] = max(0.0, delta[i])
+        elif mode == "min":
+            delta[i] = max(0.0, -delta[i])
+    return float(np.sqrt(np.sum(w * (delta / r) ** 2)))
 
 
 def _score_batch(
@@ -969,7 +971,14 @@ def _score_batch(
         [[c["blended_params"].get(k, 0.0) for k in active_keys] for c in candidates],
         dtype=np.float64,
     )
-    return np.sqrt(np.sum(w * ((A - t) / r) ** 2, axis=1))
+    D = A - t
+    for i, key in enumerate(active_keys):
+        mode = str(TARGET_OBJECTIVE_MODE.get(str(key), "exact"))
+        if mode == "max":
+            D[:, i] = np.maximum(0.0, D[:, i])
+        elif mode == "min":
+            D[:, i] = np.maximum(0.0, -D[:, i])
+    return np.sqrt(np.sum(w * (D / r) ** 2, axis=1))
 
 
 def _diverse_top_k(
@@ -1043,6 +1052,77 @@ def _diverse_top_k(
         _select_pass(min_frac_dist * relax, min_param_dist * relax)
     if len(selected) < k:
         _select_pass(min_frac_dist * relax * relax, min_param_dist * relax * relax)
+
+    if len(selected) < k:
+        for cand in pool:
+            if len(selected) >= k:
+                break
+            if cand in selected:
+                continue
+            selected.append(cand)
+
+    return selected[:k]
+
+
+RANGE_BASED_MIN_DELTAS: dict[str, float] = {
+    # Strong diversity thresholds derived from generator ranges:
+    # moisture (2.0-5.0): 30% -> 0.90
+    # fine_extract (79.0-87.0): 30% -> 2.40
+    # wort_pH (5.5-6.0): 30% -> 0.15
+    # diastatic (200-325): 30% -> 37.5
+    # total_protein (9.5-11.5): 30% -> 0.60
+    # colour (2.7-4.5): 30% -> 0.54
+    "moisture_pct": 0.90,
+    "fine_extract_db_pct": 2.40,
+    "wort_pH": 0.15,
+    "diastatic_power_WK": 37.50,
+    "total_protein_pct": 0.60,
+    "wort_colour_EBC": 0.54,
+}
+
+
+def _pick_diverse_candidates_by_param_deltas(
+    candidates: list[dict[str, Any]],
+    k: int = 4,
+) -> list[dict[str, Any]]:
+    """Pick top-k with explicit per-parameter delta diversity.
+
+    Candidate #1 is the best objective score. Additional candidates must differ
+    from already selected candidates in enough key parameters according to
+    RANGE_BASED_MIN_DELTAS. Thresholds are relaxed progressively only if needed.
+    """
+    if len(candidates) <= k:
+        return sorted(candidates, key=lambda x: float(x.get("objective_score", float("inf"))))
+
+    pool = sorted(candidates, key=lambda x: float(x.get("objective_score", float("inf"))))[: max(k * 8, 40)]
+    selected: list[dict[str, Any]] = [pool[0]]
+
+    relax_factors = [1.00, 0.75, 0.50, 0.35]
+    required_changed_by_pass = [3, 3, 2, 2]
+    keys = list(RANGE_BASED_MIN_DELTAS.keys())
+
+    def _passes_delta_gate(cand: dict[str, Any], other: dict[str, Any], relax: float, min_changed: int) -> bool:
+        aa = cand.get("blended_params", {}) or {}
+        bb = other.get("blended_params", {}) or {}
+        changed = 0
+        for key in keys:
+            if key not in aa or key not in bb:
+                continue
+            threshold = float(RANGE_BASED_MIN_DELTAS[key]) * float(relax)
+            if abs(float(aa.get(key, 0.0)) - float(bb.get(key, 0.0))) >= threshold:
+                changed += 1
+        return changed >= min_changed
+
+    for relax, min_changed in zip(relax_factors, required_changed_by_pass):
+        if len(selected) >= k:
+            break
+        for cand in pool:
+            if len(selected) >= k:
+                break
+            if cand in selected:
+                continue
+            if all(_passes_delta_gate(cand, s, relax=relax, min_changed=min_changed) for s in selected):
+                selected.append(cand)
 
     if len(selected) < k:
         for cand in pool:
@@ -1310,9 +1390,7 @@ def _build_standard_equal_split_candidate(
         "required_per_silo_kg": round(required_per_silo, 2),
         "objective_score": float(score),
         "recommended_discharge": discharge_rows,
-        "blended_params": {
-            k: float(v) for k, v in result["total_blended_params"].items()
-        },
+        "blended_params": _visible_blended_params(result["total_blended_params"]),
         "total_discharged_mass_kg": discharged_total,
     }
 
@@ -1463,6 +1541,7 @@ def create_app() -> FastAPI:
             iterations=req.iterations,
             seed=req.seed,
             use_latest_state=True,
+            include_all_candidates=bool(req.include_all_candidates),
         )
         return optimize(opt_req)
 
@@ -1684,6 +1763,7 @@ def create_app() -> FastAPI:
             iterations=req.iterations,
             seed=req.seed,
             use_latest_state=True,
+            include_all_candidates=bool(req.include_all_candidates),
         )
         out = optimize(opt_req)
         execute(
@@ -1816,6 +1896,7 @@ def create_app() -> FastAPI:
     @app.post("/api/optimize")
     def optimize(req: OptimizeRequest) -> dict[str, Any]:
         started_at = time.perf_counter()
+        validation_started_at = started_at
         inputs = {
             "silos": pd.DataFrame(req.silos),
             "layers": pd.DataFrame(req.layers),
@@ -1909,6 +1990,8 @@ def create_app() -> FastAPI:
                         f"{FIXED_DISCHARGE_TARGET_KG:.3f} kg. Currently available: {available_total:.3f} kg."
                     ),
                 )
+        validation_ended_at = time.perf_counter()
+        search_started_at = validation_ended_at
         silo_ids = silos_df["silo_id"].astype(str).tolist()
         rng = random.Random(req.seed)
         total_iter = max(1, req.iterations)
@@ -1949,9 +2032,7 @@ def create_app() -> FastAPI:
             candidate_record = {
                 "objective_score": score,
                 "recommended_discharge": candidate_rows,
-                "blended_params": {
-                    k: float(v) for k, v in result["total_blended_params"].items()
-                },
+                "blended_params": _visible_blended_params(result["total_blended_params"]),
                 "total_discharged_mass_kg": discharged_total,
             }
             top_candidates.append(candidate_record)
@@ -1961,7 +2042,7 @@ def create_app() -> FastAPI:
                 best_discharge = candidate_rows
                 best_fractions = [float(c["discharge_fraction"]) for c in candidate_rows]
 
-        # Explore: stratified random sampling in [0.2, 0.8] to improve coverage.
+        # Explore: stratified random sampling in discharge range to improve coverage.
         for i in range(explore_iters):
             band_lo = DISCHARGE_FRACTION_MIN + (
                 (DISCHARGE_FRACTION_MAX - DISCHARGE_FRACTION_MIN) * i / explore_iters
@@ -1981,6 +2062,8 @@ def create_app() -> FastAPI:
             step = 0.12 * anneal + 0.01
             trial = [_clip_fraction(f + rng.uniform(-step, step)) for f in best_fractions]
             evaluate_fractions(trial)
+        search_ended_at = time.perf_counter()
+        postprocess_started_at = search_ended_at
 
         if best_result is None:
             raise HTTPException(
@@ -1999,7 +2082,16 @@ def create_app() -> FastAPI:
             )
             for cand, sc in zip(top_candidates, batch_scores):
                 cand["objective_score"] = float(sc)
-        top_candidates = _diverse_top_k(top_candidates, k=4)
+        all_evaluated_candidates = json.loads(json.dumps(top_candidates))
+
+        selected_optimized = _pick_diverse_candidates_by_param_deltas(top_candidates, k=4)
+        if len(selected_optimized) < 4 and top_candidates:
+            for cand in sorted(top_candidates, key=lambda x: float(x.get("objective_score", float("inf")))):
+                if len(selected_optimized) >= 4:
+                    break
+                if cand not in selected_optimized:
+                    selected_optimized.append(cand)
+        top_candidates = selected_optimized[:4]
         for cand in top_candidates:
             cand["scenario_type"] = "optimized"
         standard_candidate = _build_standard_equal_split_candidate(
@@ -2025,6 +2117,7 @@ def create_app() -> FastAPI:
             "objective_method": "normalized_weighted_l2_hybrid_search",
             "param_ranges": DEFAULT_PARAM_RANGES,
             "param_weights": PARAM_WEIGHTS,
+            "target_objective_mode": TARGET_OBJECTIVE_MODE,
             "auto_fill_triggered": bool(auto_fill_triggered),
             "pre_fill_available_kg": float(pre_fill_available_kg),
             "post_fill_available_kg": float(post_fill_available_kg),
@@ -2041,7 +2134,11 @@ def create_app() -> FastAPI:
                 "auto_adjust": bool(cfg.auto_adjust),
             },
         }
+        if bool(req.include_all_candidates):
+            out["all_evaluated_candidates"] = all_evaluated_candidates
         out["elapsed_ms"] = round((time.perf_counter() - started_at) * 1000.0, 2)
+        db_ms_total = 0.0
+        db_started_at = time.perf_counter()
         sim_event_id = _write_sim_event(
             event_type="optimize",
             action="optimize",
@@ -2081,6 +2178,14 @@ def create_app() -> FastAPI:
             )
         except Exception:
             pass
+        db_ms_total += (time.perf_counter() - db_started_at) * 1000.0
+        postprocess_ended_at = time.perf_counter()
+        out["timing_breakdown_ms"] = {
+            "validation_ms": round((validation_ended_at - validation_started_at) * 1000.0, 2),
+            "search_ms": round((search_ended_at - search_started_at) * 1000.0, 2),
+            "postprocess_ms": round((postprocess_ended_at - postprocess_started_at) * 1000.0, 2),
+            "db_ms": round(db_ms_total, 2),
+        }
         _persist_result("optimize", out, payload=req.model_dump())
         return out
 
