@@ -7,6 +7,13 @@ See also:
 - API contracts: [src/dem_sim/API.md](/c:/Updated_Silo_discharge/offline-dem-simulation-engine/src/dem_sim/API.md)
 - Full deep dive: [docs/system_technical_documentation.md](/c:/Updated_Silo_discharge/offline-dem-simulation-engine/docs/system_technical_documentation.md)
 
+## Architecture Diagram
+
+![Silo Discharge Architecture Flow](docs/images/flow-diagram.jpg)
+
+If the image does not render, place the diagram file at:
+`docs/images/flow-diagram.jpg`
+
 ## High-Level Components
 
 1. Frontend UI
@@ -58,4 +65,3 @@ Main operational tables:
 - `discharge_results`
 - `brew_schedules`
 - `brew_schedule_items`
-
