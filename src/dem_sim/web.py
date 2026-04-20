@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import random
 import time
+from copy import deepcopy
 from io import StringIO
 from math import isnan
 from pathlib import Path
+from datetime import datetime
 from typing import Any
 
 import numpy as np
@@ -14,7 +17,7 @@ import pandas as pd
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -189,6 +192,7 @@ def _persist_result(event_type: str, result: dict[str, Any], payload: dict[str, 
 
 def _write_sim_event(
     *,
+    plan_run_id: str | None = None,
     event_type: str,
     action: str,
     state_before: dict[str, Any] | None = None,
@@ -209,6 +213,7 @@ def _write_sim_event(
                 row = conn.execute(
                     """
                     INSERT INTO sim_events (
+                        plan_run_id,
                         event_type,
                         action,
                         state_before,
@@ -221,10 +226,11 @@ def _write_sim_event(
                         objective_score,
                         meta
                     )
-                    VALUES (%s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s, %s, %s, %s, %s, %s::jsonb)
+                    VALUES (%s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s, %s, %s, %s, %s, %s::jsonb)
                     RETURNING id
                     """,
                     (
+                        plan_run_id,
                         event_type,
                         action,
                         json.dumps(state_before or {}),
@@ -261,6 +267,7 @@ class OptimizeRequest(RunRequest):
     seed: int = 42
     use_latest_state: bool = False
     include_all_candidates: bool = False
+    plan_run_id: str | None = None
 
 
 class ProcessRunSimulationRequest(BaseModel):
@@ -281,6 +288,7 @@ class ProcessOptimizeRequest(BaseModel):
 class ProcessApplyDischargeRequest(BaseModel):
     discharge: list[dict[str, Any]] = Field(default_factory=list)
     config: dict[str, Any] = Field(default_factory=dict)
+    plan_run_id: str | None = None
 
 
 class GenerateRandomDataRequest(BaseModel):
@@ -310,6 +318,36 @@ class ScheduleApplyRequest(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class ProductionPlanLoadRequest(BaseModel):
+    plan_run_id: str | None = None
+    seed: int = 42
+    silos_count: int = 3
+    lots_count: int = 100
+    lot_size_kg: float = 25000.0
+    schedule_id: str | None = None
+    name: str = "MVP Brew Schedule"
+    brews_count: int = 7
+    target_params: dict[str, float] = Field(default_factory=dict)
+    optimize_iterations: int = 80
+    optimize_seed: int = 42
+    config: dict[str, Any] = Field(default_factory=lambda: {"steps": 800})
+    include_all_candidates: bool = False
+
+
+class ProductionPlanOptimizeRequest(BaseModel):
+    iterations: int = 80
+    seed: int = 42
+    config: dict[str, Any] = Field(default_factory=dict)
+    include_all_candidates: bool = False
+    expected_last_event_id: int | None = None
+
+
+class ProductionPlanApplyRequest(BaseModel):
+    candidate_index: int = 0
+    config: dict[str, Any] = Field(default_factory=dict)
+    expected_last_event_id: int | None = None
+
+
 DEFAULT_SCHEDULE_TARGET_PARAMS = {
     "moisture_pct": 4.50,
     "fine_extract_db_pct": 81.00,
@@ -318,6 +356,358 @@ DEFAULT_SCHEDULE_TARGET_PARAMS = {
     "total_protein_pct": 10.80,
     "wort_colour_EBC": 3.50,
 }
+
+ACTIVE_RUN_STATUSES = {"active", "awaiting_apply", "awaiting_optimization", "in_progress"}
+
+
+def _new_plan_run_id(schedule_id: str) -> str:
+    slug = "".join(ch.lower() if ch.isalnum() else "_" for ch in str(schedule_id or "plan"))
+    slug = slug.strip("_") or "plan"
+    return f"run_{slug}_{int(time.time() * 1000)}"
+
+
+def _json_obj(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except Exception:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _json_list(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except Exception:
+            return []
+        return parsed if isinstance(parsed, list) else []
+    return []
+
+
+def _summarize_state_snapshot(state: dict[str, Any]) -> dict[str, Any]:
+    silos = deepcopy(state.get("silos", []))
+    layers = deepcopy(state.get("layers", []))
+    by_silo: dict[str, dict[str, Any]] = {}
+    for s in silos:
+        sid = str(s.get("silo_id", ""))
+        if not sid:
+            continue
+        cap = float(s.get("capacity_kg", 0.0) or 0.0)
+        by_silo[sid] = {
+            "silo_id": sid,
+            "capacity_kg": cap,
+            "used_kg": 0.0,
+            "remaining_kg": cap,
+            "remaining_pct": 100.0 if cap > 0 else 0.0,
+            "lots": [],
+        }
+    for row in sorted(layers, key=lambda r: (str(r.get("silo_id", "")), int(r.get("layer_index", 0) or 0))):
+        sid = str(row.get("silo_id", ""))
+        if sid not in by_silo:
+            continue
+        mass = float(row.get("remaining_mass_kg", row.get("segment_mass_kg", 0.0)) or 0.0)
+        by_silo[sid]["used_kg"] += mass
+        by_silo[sid]["lots"].append(
+            {
+                "layer_index": int(row.get("layer_index", 0) or 0),
+                "lot_id": str(row.get("lot_id", "")),
+                "supplier": str(row.get("supplier", "")),
+                "remaining_mass_kg": mass,
+            }
+        )
+    for rec in by_silo.values():
+        cap = float(rec["capacity_kg"])
+        remaining = cap - float(rec["used_kg"])
+        rec["remaining_kg"] = max(0.0, 0.0 if abs(remaining) <= 1e-6 else remaining)
+        rec["remaining_pct"] = max(0.0, min(100.0, (rec["remaining_kg"] / cap * 100.0) if cap > 0 else 0.0))
+        active_lots = [lot for lot in rec["lots"] if float(lot.get("remaining_mass_kg", 0.0)) > 1e-9]
+        active_lots.sort(key=lambda lot: int(lot.get("layer_index", 0)))
+        for idx, lot in enumerate(active_lots, start=1):
+            lot["current_layer_index"] = idx
+        rec["lots"] = active_lots
+    queue = deepcopy(state.get("incoming_queue", []))
+    return {
+        "silos": list(by_silo.values()),
+        "incoming_queue": {
+            "count": len(queue),
+            "total_mass_kg": float(sum(float(x.get("mass_kg", 0.0) or 0.0) for x in queue)),
+        },
+        "cumulative_discharged_kg": float(state.get("cumulative_discharged_kg", 0.0) or 0.0),
+    }
+
+
+def _latest_plan_state(plan_run_id: str) -> dict[str, Any] | None:
+    rows = fetchall(
+        """
+        SELECT state_after
+        FROM sim_events
+        WHERE plan_run_id = %s
+        ORDER BY id DESC
+        LIMIT 100
+        """,
+        (plan_run_id,),
+    )
+    for row in rows:
+        state_after = _json_obj(row.get("state_after"))
+        if isinstance(state_after.get("silos"), list) and isinstance(state_after.get("layers"), list):
+            return state_after
+    return None
+
+
+def _activate_plan_run_state(plan_run_id: str) -> dict[str, Any]:
+    state = _latest_plan_state(plan_run_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="No persisted state found for plan run.")
+    reset_state()
+    set_state(
+        silos=state.get("silos", []),
+        layers=state.get("layers", []),
+        suppliers=state.get("suppliers", []),
+        incoming_queue=state.get("incoming_queue", []),
+        action="activate_plan_run_state",
+        meta={"plan_run_id": plan_run_id},
+    )
+    live = get_state()
+    live["cumulative_discharged_kg"] = float(state.get("cumulative_discharged_kg", live.get("cumulative_discharged_kg", 0.0)) or 0.0)
+    return live
+
+
+def _plan_run_head(plan_run_id: str) -> dict[str, Any]:
+    rows = fetchall(
+        """
+        SELECT plan_run_id, schedule_id, name, status, current_stage, current_message, progress_pct,
+               current_brew_id, current_brew_index,
+               last_event_id, created_at, updated_at, completed_at, meta
+        FROM production_plan_runs
+        WHERE plan_run_id = %s
+        """,
+        (plan_run_id,),
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="production plan run not found")
+    row = dict(rows[0])
+    row["meta"] = _json_obj(row.get("meta"))
+    return row
+
+
+def _schedule_items(schedule_id: str) -> list[dict[str, Any]]:
+    rows = fetchall(
+        """
+        SELECT id, brew_id, brew_index, target_params, target_discharge_kg, status,
+               optimize_result, selected_candidate_index, applied_event_id, created_at, updated_at
+        FROM brew_schedule_items
+        WHERE schedule_id = %s
+        ORDER BY brew_index
+        """,
+        (schedule_id,),
+    )
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        item = dict(row)
+        item["target_params"] = _json_obj(item.get("target_params"))
+        item["optimize_result"] = _json_obj(item.get("optimize_result"))
+        out.append(item)
+    return out
+
+
+def _pick_current_brew(items: list[dict[str, Any]]) -> dict[str, Any] | None:
+    for item in items:
+        if str(item.get("status", "")) == "optimized":
+            return item
+    for item in items:
+        if str(item.get("status", "")) != "applied":
+            return item
+    return None
+
+
+def _update_plan_run(
+    plan_run_id: str,
+    *,
+    status: str | None = None,
+    current_stage: str | None = None,
+    current_message: str | None = None,
+    progress_pct: float | None = None,
+    current_brew_id: str | None = None,
+    current_brew_index: int | None = None,
+    last_event_id: int | None = None,
+    completed: bool = False,
+) -> None:
+    existing = _plan_run_head(plan_run_id)
+    execute(
+        """
+        UPDATE production_plan_runs
+        SET status = %s,
+            current_stage = %s,
+            current_message = %s,
+            progress_pct = %s,
+            current_brew_id = %s,
+            current_brew_index = %s,
+            last_event_id = %s,
+            updated_at = NOW(),
+            completed_at = CASE WHEN %s THEN NOW() ELSE completed_at END
+        WHERE plan_run_id = %s
+        """,
+        (
+            status or existing.get("status"),
+            current_stage or existing.get("current_stage"),
+            current_message if current_message is not None else existing.get("current_message"),
+            float(progress_pct) if progress_pct is not None else float(existing.get("progress_pct", 0.0) or 0.0),
+            current_brew_id if current_brew_id is not None else existing.get("current_brew_id"),
+            current_brew_index if current_brew_index is not None else existing.get("current_brew_index"),
+            last_event_id if last_event_id is not None else existing.get("last_event_id"),
+            completed,
+            plan_run_id,
+        ),
+    )
+
+
+def _assert_expected_last_event(plan_run_id: str, expected_last_event_id: int | None) -> None:
+    if expected_last_event_id is None:
+        return
+    head = _plan_run_head(plan_run_id)
+    current = head.get("last_event_id")
+    current_num = int(current) if current is not None else None
+    if current_num != int(expected_last_event_id):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Production plan state advanced from event {expected_last_event_id} to {current_num}. Refresh and retry.",
+        )
+
+
+def _plan_run_response(plan_run_id: str) -> dict[str, Any]:
+    head = _plan_run_head(plan_run_id)
+    items = _schedule_items(str(head.get("schedule_id", "")))
+    current_brew = _pick_current_brew(items)
+    state = _latest_plan_state(plan_run_id) or {"silos": [], "layers": [], "suppliers": [], "incoming_queue": []}
+    summary = _summarize_state_snapshot(state)
+    scenarios: list[dict[str, Any]] = []
+    target_params: dict[str, Any] = {}
+    if current_brew:
+        target_params = _json_obj(current_brew.get("target_params"))
+        optimize_result = _json_obj(current_brew.get("optimize_result"))
+        scenarios = _json_list(optimize_result.get("top_candidates"))
+    return {
+        "plan_run": head,
+        "schedule": {
+            "schedule_id": head.get("schedule_id"),
+            "name": head.get("name"),
+        },
+        "brews": [
+            {
+                "brew_id": item.get("brew_id"),
+                "brew_index": item.get("brew_index"),
+                "status": item.get("status"),
+                "selected_candidate_index": item.get("selected_candidate_index"),
+                "applied_event_id": item.get("applied_event_id"),
+                "target_params": _json_obj(item.get("target_params")),
+            }
+            for item in items
+        ],
+        "current_brew": (
+            {
+                "brew_id": current_brew.get("brew_id"),
+                "brew_index": current_brew.get("brew_index"),
+                "status": current_brew.get("status"),
+                "target_params": target_params,
+                "selected_candidate_index": current_brew.get("selected_candidate_index"),
+            }
+            if current_brew
+            else None
+        ),
+        "scenarios": scenarios,
+        "inventory": {"state": state, "summary": summary},
+    }
+
+
+def _workflow_progress(schedule_id: str) -> float:
+    items = _schedule_items(schedule_id)
+    total = len(items)
+    if total <= 0:
+        return 0.0
+    completed = sum(1 for item in items if str(item.get("status", "")) == "applied")
+    return round((completed / total) * 100.0, 2)
+
+
+def _stream_signature(plan_run_id: str) -> str:
+    rows = fetchall(
+        """
+        SELECT updated_at, current_stage, current_message, progress_pct, current_brew_id, current_brew_index, last_event_id, status
+        FROM production_plan_runs
+        WHERE plan_run_id = %s
+        """,
+        (plan_run_id,),
+    )
+    if not rows:
+        return "missing"
+    row = rows[0]
+    return json.dumps(
+        {
+            "updated_at": str(row.get("updated_at")),
+            "current_stage": row.get("current_stage"),
+            "current_message": row.get("current_message"),
+            "progress_pct": row.get("progress_pct"),
+            "current_brew_id": row.get("current_brew_id"),
+            "current_brew_index": row.get("current_brew_index"),
+            "last_event_id": row.get("last_event_id"),
+            "status": row.get("status"),
+        },
+        sort_keys=True,
+    )
+
+
+def _optimize_brew_for_plan_run(
+    *,
+    optimize_fn: Any,
+    plan_run_id: str,
+    schedule_id: str,
+    brew_id: str,
+    target_params: dict[str, Any],
+    iterations: int,
+    seed: int,
+    config: dict[str, Any],
+    include_all_candidates: bool,
+) -> tuple[dict[str, Any], int | None]:
+    opt_out = optimize_fn(
+        OptimizeRequest(
+            silos=get_state().get("silos", []),
+            layers=get_state().get("layers", []),
+            suppliers=get_state().get("suppliers", []),
+            discharge=[],
+            config=config,
+            target_params={str(k): float(v) for k, v in (target_params or {}).items()},
+            iterations=iterations,
+            seed=seed,
+            use_latest_state=False,
+            include_all_candidates=include_all_candidates,
+            plan_run_id=plan_run_id,
+        )
+    )
+    execute(
+        """
+        UPDATE brew_schedule_items
+        SET status = 'optimized', optimize_result = %s::jsonb, updated_at = NOW()
+        WHERE schedule_id = %s AND brew_id = %s
+        """,
+        (json.dumps(opt_out), schedule_id, brew_id),
+    )
+    optimize_rows = fetchall(
+        """
+        SELECT id
+        FROM sim_events
+        WHERE plan_run_id = %s AND event_type = 'optimize'
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (plan_run_id,),
+    )
+    optimize_event_id = int(optimize_rows[0].get("id")) if optimize_rows else None
+    return opt_out, optimize_event_id
 
 
 def _generate_random_payload(
@@ -514,6 +904,82 @@ def _records_json_safe(df: pd.DataFrame) -> list[dict[str, Any]]:
                 cleaned[key] = value
         out.append(cleaned)
     return out
+
+
+def _write_lot_coas_csv(
+    *,
+    layers_df: pd.DataFrame,
+    suppliers_df: pd.DataFrame,
+    incoming_queue: list[dict[str, Any]] | None = None,
+    output_dir: Path | None = None,
+) -> Path | None:
+    """Write per-lot COA rows to outputs CSV for the current optimize run."""
+    try:
+        incoming_queue = incoming_queue or []
+        output_dir = output_dir or Path("outputs")
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        coa_cols = [
+            "moisture_pct",
+            "fine_extract_db_pct",
+            "wort_pH",
+            "diastatic_power_WK",
+            "total_protein_pct",
+            "wort_colour_EBC",
+        ]
+        supplier_map: dict[str, dict[str, Any]] = {}
+        if not suppliers_df.empty:
+            for r in suppliers_df.to_dict(orient="records"):
+                key = str(r.get("supplier", "") or r.get("name", ""))
+                if not key:
+                    continue
+                supplier_map[key] = {c: r.get(c) for c in coa_cols}
+
+        # Incoming queue can carry explicit lot-level COA specs.
+        lot_map: dict[str, dict[str, Any]] = {}
+        for row in incoming_queue:
+            lot_id = str(row.get("lot_id", ""))
+            supplier = str(row.get("supplier", ""))
+            if not lot_id:
+                continue
+            lot_map[lot_id] = {
+                "lot_id": lot_id,
+                "supplier": supplier,
+                "source": "lot",
+                **{c: row.get(c) for c in coa_cols},
+            }
+
+        # Layers list the lot ids but typically do not store lot-level COA.
+        if not layers_df.empty and "lot_id" in layers_df.columns:
+            for r in layers_df.to_dict(orient="records"):
+                lot_id = str(r.get("lot_id", ""))
+                if not lot_id:
+                    continue
+                if lot_id in lot_map:
+                    continue
+                supplier = str(r.get("supplier", ""))
+                sup_coa = supplier_map.get(supplier, {})
+                lot_map[lot_id] = {
+                    "lot_id": lot_id,
+                    "supplier": supplier,
+                    "source": "supplier_fallback",
+                    **{c: sup_coa.get(c) for c in coa_cols},
+                }
+
+        if not lot_map:
+            return None
+
+        ts = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        out_path = output_dir / f"lot_coas_optimize_{ts}.csv"
+        rows = list(lot_map.values())
+        fieldnames = ["lot_id", "supplier", "source"] + coa_cols
+        with out_path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        return out_path
+    except Exception:
+        return None
 
 
 def _sample_payload() -> dict[str, Any]:
@@ -840,8 +1306,8 @@ DEFAULT_PARAM_RANGES = {
     "total_protein_pct": 11.2 - 10.2,
     "wort_colour_EBC": 4.7 - 4.3,
 }
-DISCHARGE_FRACTION_MIN = 0.35
-DISCHARGE_FRACTION_MAX = 0.65
+DISCHARGE_FRACTION_MIN = 0.0
+DISCHARGE_FRACTION_MAX = 1.0
 FIXED_DISCHARGE_TARGET_KG = 9000.0
 FIXED_DISCHARGE_TOL_KG = 1e-3
 TARGET_OBJECTIVE_MODE: dict[str, str] = {
@@ -868,6 +1334,105 @@ def _visible_blended_params(params: dict[str, Any]) -> dict[str, float]:
         for k, v in (params or {}).items()
         if str(k) not in HIDDEN_BLEND_PARAM_KEYS
     }
+
+
+# ---------------------------------------------------------------------------
+# Brewmaster ML — predict which of the top candidates the brewmaster selects
+# ---------------------------------------------------------------------------
+
+_BREWMASTER_FEATURE_COLUMNS = [
+    "seed", "candidate_num", "objective_score", "total_discharged_mass_kg",
+    "S1_discharge_fraction", "S1_discharge_mass_kg",
+    "S2_discharge_fraction", "S2_discharge_mass_kg",
+    "S3_discharge_fraction", "S3_discharge_mass_kg",
+    "diastatic_power_WK", "fine_extract_db_pct", "moisture_pct",
+    "total_protein_pct", "wort_colour_EBC", "wort_pH",
+]
+
+
+def _brewmaster_score_candidates(
+    candidates: list[dict[str, Any]],
+    seed: int,
+) -> list[dict[str, Any]]:
+    """
+    Score the top candidates against the Azure ML brewmaster endpoint.
+
+    Each candidate is annotated with:
+      brewmaster_prob_selected  — P(this candidate is chosen) from the model
+      brewmaster_prediction     — 1 if model predicts selected, 0 otherwise
+
+    The candidate with the highest brewmaster_prob_selected is also flagged
+    with  brewmaster_top_pick: True.
+
+    Silently skips if BREWMASTER_ENDPOINT_URL / BREWMASTER_API_KEY are unset
+    or if the endpoint call fails, so optimization is never blocked.
+    """
+    import os
+    import requests as _requests
+
+    url = os.getenv("BREWMASTER_ENDPOINT_URL", "https://bq-brewmaster-endpoint.germanywestcentral.inference.ml.azure.com/score").strip()
+    key = os.getenv("BREWMASTER_API_KEY", "").strip()
+    if not url or not key:
+        return candidates
+
+    rows = []
+    for i, cand in enumerate(candidates, start=1):
+        bp   = cand.get("blended_params") or {}
+        silo = {str(r["silo_id"]): r for r in (cand.get("recommended_discharge") or [])}
+        rows.append([
+            int(seed),
+            i,
+            float(cand.get("objective_score", 0.0)),
+            float(cand.get("total_discharged_mass_kg", 0.0)),
+            float(silo.get("S1", {}).get("discharge_fraction", 0.0)),
+            float(silo.get("S1", {}).get("discharge_mass_kg",  0.0)),
+            float(silo.get("S2", {}).get("discharge_fraction", 0.0)),
+            float(silo.get("S2", {}).get("discharge_mass_kg",  0.0)),
+            float(silo.get("S3", {}).get("discharge_fraction", 0.0)),
+            float(silo.get("S3", {}).get("discharge_mass_kg",  0.0)),
+            float(bp.get("diastatic_power_WK",  0.0)),
+            float(bp.get("fine_extract_db_pct", 0.0)),
+            float(bp.get("moisture_pct",        0.0)),
+            float(bp.get("total_protein_pct",   0.0)),
+            float(bp.get("wort_colour_EBC",     0.0)),
+            float(bp.get("wort_pH",             0.0)),
+        ])
+
+    try:
+        resp = _requests.post(
+            url,
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={"input_data": {"columns": _BREWMASTER_FEATURE_COLUMNS, "data": rows}},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        if isinstance(body, str):
+            body = json.loads(body)
+
+        predictions   = body.get("predictions",   [])
+        probabilities = body.get("probabilities", [])
+
+        best_idx  = -1
+        best_prob = -1.0
+        for i, cand in enumerate(candidates):
+            prob = float(probabilities[i][1]) if i < len(probabilities) else None
+            pred = int(predictions[i])        if i < len(predictions)   else None
+            cand["candidate_num"]            = i + 1   # 1-based, stable before any sort
+            cand["brewmaster_prob_selected"] = prob
+            cand["brewmaster_prediction"]    = pred
+            cand["brewmaster_top_pick"]      = False
+            if prob is not None and prob > best_prob:
+                best_prob = prob
+                best_idx  = i
+
+        if best_idx >= 0:
+            candidates[best_idx]["brewmaster_top_pick"] = True
+
+    except Exception as exc:
+        print(f"[brewmaster] endpoint call failed (non-fatal): {exc}")
+
+    return candidates
 
 
 def _score_blend(
@@ -1085,54 +1650,112 @@ def _pick_diverse_candidates_by_param_deltas(
     candidates: list[dict[str, Any]],
     k: int = 4,
 ) -> list[dict[str, Any]]:
-    """Pick top-k with explicit per-parameter delta diversity.
+    """Pick top-k by diversity using normalized feature distance.
 
-    Candidate #1 is the best objective score. Additional candidates must differ
-    from already selected candidates in enough key parameters according to
-    RANGE_BASED_MIN_DELTAS. Thresholds are relaxed progressively only if needed.
+    Build a feature vector from blended COA params + discharge fractions.
+    Start with the best objective score, then greedily add the candidate
+    with the largest minimum distance to the already-selected set.
     """
     if len(candidates) <= k:
         return sorted(candidates, key=lambda x: float(x.get("objective_score", float("inf"))))
 
-    pool = sorted(candidates, key=lambda x: float(x.get("objective_score", float("inf"))))[: max(k * 8, 40)]
-    selected: list[dict[str, Any]] = [pool[0]]
+    pool = list(candidates)
+    pool_sorted = sorted(pool, key=lambda x: float(x.get("objective_score", float("inf"))))
 
-    relax_factors = [1.00, 0.75, 0.50, 0.35]
-    required_changed_by_pass = [3, 3, 2, 2]
-    keys = list(RANGE_BASED_MIN_DELTAS.keys())
+    def _feature_vec(c: dict[str, Any]) -> np.ndarray:
+        params = c.get("blended_params", {}) or {}
+        param_vals = [float(params.get(k, 0.0)) for k in PARAM_KEYS]
+        discharge = c.get("recommended_discharge", []) or []
+        frac_vals = [float(r.get("discharge_fraction", 0.0)) for r in discharge]
+        return np.array(param_vals + frac_vals, dtype=np.float64)
 
-    def _passes_delta_gate(cand: dict[str, Any], other: dict[str, Any], relax: float, min_changed: int) -> bool:
-        aa = cand.get("blended_params", {}) or {}
-        bb = other.get("blended_params", {}) or {}
-        changed = 0
-        for key in keys:
-            if key not in aa or key not in bb:
+    feats = np.stack([_feature_vec(c) for c in pool_sorted], axis=0)
+    if feats.size == 0:
+        return pool_sorted[:k]
+    mean = feats.mean(axis=0)
+    std = feats.std(axis=0)
+    std = np.where(std <= 1e-9, 1.0, std)
+    feats = (feats - mean) / std
+
+    selected_idx: list[int] = [0]
+    while len(selected_idx) < k and len(selected_idx) < len(pool_sorted):
+        best_idx = None
+        best_dist = -1.0
+        for i in range(len(pool_sorted)):
+            if i in selected_idx:
                 continue
-            threshold = float(RANGE_BASED_MIN_DELTAS[key]) * float(relax)
-            if abs(float(aa.get(key, 0.0)) - float(bb.get(key, 0.0))) >= threshold:
-                changed += 1
-        return changed >= min_changed
-
-    for relax, min_changed in zip(relax_factors, required_changed_by_pass):
-        if len(selected) >= k:
+            dmin = min(
+                float(np.linalg.norm(feats[i] - feats[j])) for j in selected_idx
+            )
+            if dmin > best_dist:
+                best_dist = dmin
+                best_idx = i
+        if best_idx is None:
             break
-        for cand in pool:
-            if len(selected) >= k:
-                break
-            if cand in selected:
-                continue
-            if all(_passes_delta_gate(cand, s, relax=relax, min_changed=min_changed) for s in selected):
-                selected.append(cand)
+        selected_idx.append(best_idx)
 
-    if len(selected) < k:
-        for cand in pool:
-            if len(selected) >= k:
-                break
-            if cand in selected:
-                continue
-            selected.append(cand)
+    return [pool_sorted[i] for i in selected_idx[:k]]
 
-    return selected[:k]
+
+def _fraction_vector_for_candidate(
+    candidate: dict[str, Any], silo_ids: list[str]
+) -> list[float]:
+    """Return fractions ordered by silo_ids, defaulting to 0.0 if missing."""
+    discharge = candidate.get("recommended_discharge", []) or []
+    by_silo = {
+        str(r.get("silo_id", "")): float(r.get("discharge_fraction", 0.0) or 0.0)
+        for r in discharge
+    }
+    return [by_silo.get(str(sid), 0.0) for sid in silo_ids]
+
+
+def _fraction_distance(a: list[float], b: list[float]) -> float:
+    return float(np.linalg.norm(np.asarray(a, dtype=np.float64) - np.asarray(b, dtype=np.float64)))
+
+
+def _pick_diverse_candidates_by_fraction_distance(
+    candidates: list[dict[str, Any]],
+    silo_ids: list[str],
+    k: int = 4,
+    min_dist: float = 0.35,
+) -> list[dict[str, Any]]:
+    """Select candidates far apart in discharge-fraction space (maximin)."""
+    if len(candidates) <= k:
+        return sorted(candidates, key=lambda x: float(x.get("objective_score", float("inf"))))
+    pool = sorted(candidates, key=lambda x: float(x.get("objective_score", float("inf"))))
+    selected: list[dict[str, Any]] = [pool[0]]
+    selected_vecs = [_fraction_vector_for_candidate(pool[0], silo_ids)]
+    remaining = pool[1:]
+    while remaining and len(selected) < k:
+        best_idx = None
+        best_min_dist = -1.0
+        for idx, cand in enumerate(remaining):
+            vec = _fraction_vector_for_candidate(cand, silo_ids)
+            min_d = min(_fraction_distance(vec, svec) for svec in selected_vecs)
+            if min_d > best_min_dist:
+                best_min_dist = min_d
+                best_idx = idx
+        if best_idx is None:
+            break
+        cand = remaining.pop(best_idx)
+        vec = _fraction_vector_for_candidate(cand, silo_ids)
+        # Enforce a minimum separation if possible; otherwise fall back to farthest.
+        if best_min_dist + 1e-9 < min_dist:
+            found = None
+            found_vec = None
+            for idx, alt in enumerate(remaining):
+                avec = _fraction_vector_for_candidate(alt, silo_ids)
+                amin = min(_fraction_distance(avec, svec) for svec in selected_vecs)
+                if amin + 1e-9 >= min_dist:
+                    found = idx
+                    found_vec = avec
+                    break
+            if found is not None:
+                cand = remaining.pop(found)
+                vec = found_vec or vec
+        selected.append(cand)
+        selected_vecs.append(vec)
+    return selected
 
 
 def _clip_fraction(v: float) -> float:
@@ -1632,6 +2255,7 @@ def create_app() -> FastAPI:
         )
         out = {"state": updated, "summary": after, "predicted_run": predicted}
         sim_event_id = _write_sim_event(
+            plan_run_id=req.plan_run_id,
             event_type="apply_discharge",
             action="apply_discharge",
             state_before=before_state,
@@ -1647,15 +2271,17 @@ def create_app() -> FastAPI:
             execute(
                 """
                 INSERT INTO discharge_results (
+                    plan_run_id,
                     sim_event_id,
                     discharge_by_silo,
                     predicted_run,
                     summary_before,
                     summary_after
                 )
-                VALUES (%s, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb)
+                VALUES (%s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb)
                 """,
                 (
+                    req.plan_run_id,
                     sim_event_id,
                     json.dumps(discharge_by_silo),
                     json.dumps(predicted),
@@ -1736,6 +2362,396 @@ def create_app() -> FastAPI:
             (schedule_id,),
         )
         return {"schedule": head[0], "items": rows}
+
+    @app.get("/api/production-plans/active")
+    def get_active_production_plan() -> dict[str, Any]:
+        ensure_db_schema()
+        rows = fetchall(
+            """
+            SELECT plan_run_id
+            FROM production_plan_runs
+            WHERE status <> 'completed'
+            ORDER BY updated_at DESC, created_at DESC
+            LIMIT 1
+            """
+        )
+        if not rows:
+            return {"active": None}
+        plan_run_id = str(rows[0].get("plan_run_id", ""))
+        return {"active": _plan_run_response(plan_run_id)}
+
+    @app.get("/api/production-plans/{plan_run_id}")
+    def get_production_plan(plan_run_id: str) -> dict[str, Any]:
+        ensure_db_schema()
+        return _plan_run_response(plan_run_id)
+
+    @app.get("/api/production-plans/{plan_run_id}/stream")
+    def stream_production_plan(plan_run_id: str) -> StreamingResponse:
+        ensure_db_schema()
+
+        def event_iter():
+            last_sig = ""
+            while True:
+                sig = _stream_signature(plan_run_id)
+                if sig != last_sig:
+                    last_sig = sig
+                    if sig == "missing":
+                        payload = {
+                            "type": "waiting",
+                            "plan_run_id": plan_run_id,
+                            "message": "Waiting for production plan to start...",
+                        }
+                    else:
+                        payload = {
+                            "type": "snapshot",
+                            "plan_run_id": plan_run_id,
+                            "data": _plan_run_response(plan_run_id),
+                        }
+                    yield f"data: {json.dumps(payload)}\n\n"
+                else:
+                    yield ": keepalive\n\n"
+                time.sleep(1.0)
+
+        return StreamingResponse(
+            event_iter(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        )
+
+    @app.post("/api/production-plans/load")
+    def load_production_plan(req: ProductionPlanLoadRequest) -> dict[str, Any]:
+        ensure_db_schema()
+        requested_plan_run_id = str(req.plan_run_id or "").strip()
+        payload = _generate_random_payload(
+            seed=req.seed,
+            silos_count=req.silos_count,
+            lots_count=req.lots_count,
+            lot_size_kg=req.lot_size_kg,
+        )
+        _replace_db_seed_data(payload)
+        reset_state()
+        set_state(
+            silos=payload.get("silos", []),
+            layers=payload.get("layers", []),
+            suppliers=payload.get("suppliers", []),
+            incoming_queue=payload.get("incoming_queue", []),
+            action="generate_random_data",
+            meta={"seed": req.seed},
+        )
+        effective_schedule_id = req.schedule_id or f"sched_{req.seed}_{req.brews_count}_{int(time.time() * 1000)}"
+        generated_schedule = generate_schedule(
+            GenerateScheduleRequest(
+                schedule_id=effective_schedule_id,
+                name=req.name,
+                brews_count=req.brews_count,
+                seed=req.seed,
+                target_params=req.target_params,
+            )
+        )
+        schedule_id = str(generated_schedule.get("schedule_id", ""))
+        plan_run_id = requested_plan_run_id or _new_plan_run_id(schedule_id)
+        execute(
+            """
+            INSERT INTO production_plan_runs (
+                plan_run_id, schedule_id, name, status, current_stage, current_message, progress_pct, current_brew_id, current_brew_index, meta
+            )
+            VALUES (%s, %s, %s, 'active', 'load_started', 'Starting production plan load...', 0.0, NULL, NULL, %s::jsonb)
+            ON CONFLICT (plan_run_id)
+            DO UPDATE SET
+                schedule_id = EXCLUDED.schedule_id,
+                name = EXCLUDED.name,
+                status = 'active',
+                current_stage = 'load_started',
+                current_message = 'Starting production plan load...',
+                progress_pct = 0.0,
+                current_brew_id = NULL,
+                current_brew_index = NULL,
+                last_event_id = NULL,
+                completed_at = NULL,
+                updated_at = NOW(),
+                meta = EXCLUDED.meta
+            """,
+            (
+                plan_run_id,
+                schedule_id,
+                req.name,
+                json.dumps(
+                    {
+                        "seed": req.seed,
+                        "silos_count": req.silos_count,
+                        "lots_count": req.lots_count,
+                        "lot_size_kg": req.lot_size_kg,
+                    }
+                ),
+            ),
+        )
+        summary = summarize_state()
+        random_event_id = _write_sim_event(
+            plan_run_id=plan_run_id,
+            event_type="generate_random_data",
+            action="generate_random_data",
+            state_after=get_state(),
+            incoming_queue_count=int(summary.get("incoming_queue", {}).get("count", 0)),
+            incoming_queue_mass_kg=float(summary.get("incoming_queue", {}).get("total_mass_kg", 0.0)),
+            meta={"seed": req.seed, "silos_count": req.silos_count, "lots_count": req.lots_count},
+        )
+        if random_event_id is not None:
+            _update_plan_run(
+                plan_run_id,
+                current_stage="random_generated",
+                current_message="Random inventory generated.",
+                progress_pct=20.0,
+                last_event_id=random_event_id,
+            )
+        _update_plan_run(
+            plan_run_id,
+            current_stage="schedule_generated",
+            current_message=f"Schedule generated with {req.brews_count} brews.",
+            progress_pct=35.0,
+        )
+        _update_plan_run(
+            plan_run_id,
+            current_stage="simulation_running",
+            current_message="Running fill simulation for loaded production plan...",
+            progress_pct=50.0,
+        )
+        run_out = process_run_simulation(
+            ProcessRunSimulationRequest(
+                silos=payload.get("silos", []),
+                layers=payload.get("layers", []),
+                suppliers=payload.get("suppliers", []),
+                incoming_queue=payload.get("incoming_queue", []),
+            )
+        )
+        run_state = run_out.get("state", {})
+        run_summary = run_out.get("summary", {})
+        run_event_id = _write_sim_event(
+            plan_run_id=plan_run_id,
+            event_type="run_simulation_fill_only",
+            action="run_simulation_fill_only",
+            state_after=run_state,
+            total_discharged_mass_kg=0.0,
+            total_remaining_mass_kg=None,
+            incoming_queue_count=int(run_summary.get("incoming_queue", {}).get("count", 0)),
+            incoming_queue_mass_kg=float(run_summary.get("incoming_queue", {}).get("total_mass_kg", 0.0)),
+            meta={"source": "production_plan_load"},
+        )
+        if run_event_id is not None:
+            _update_plan_run(
+                plan_run_id,
+                current_stage="simulation_completed",
+                current_message="Fill simulation completed.",
+                progress_pct=65.0,
+                last_event_id=run_event_id,
+            )
+        first_brew = _pick_current_brew(_schedule_items(schedule_id))
+        if not first_brew:
+            raise HTTPException(status_code=422, detail="No brew items were created for the production plan.")
+        _update_plan_run(
+            plan_run_id,
+            current_stage="optimizing",
+            current_message=f"Optimizing {str(first_brew.get('brew_id', 'brew 1'))}...",
+            progress_pct=80.0,
+            current_brew_id=str(first_brew.get("brew_id", "")),
+            current_brew_index=int(first_brew.get("brew_index", 0) or 0),
+        )
+        _, optimize_event_id = _optimize_brew_for_plan_run(
+            optimize_fn=optimize,
+            plan_run_id=plan_run_id,
+            schedule_id=schedule_id,
+            brew_id=str(first_brew.get("brew_id", "")),
+            target_params=_json_obj(first_brew.get("target_params")),
+            iterations=req.optimize_iterations,
+            seed=req.optimize_seed,
+            config=req.config,
+            include_all_candidates=req.include_all_candidates,
+        )
+        _update_plan_run(
+            plan_run_id,
+            status="active",
+            current_stage="awaiting_apply",
+            current_message=f"{str(first_brew.get('brew_id', 'BREW001'))} ready for scenario selection.",
+            progress_pct=100.0 * (1.0 / max(1, req.brews_count)) * 0.5,
+            current_brew_id=str(first_brew.get("brew_id", "")),
+            current_brew_index=int(first_brew.get("brew_index", 0) or 0),
+            last_event_id=optimize_event_id,
+        )
+        return _plan_run_response(plan_run_id)
+
+    @app.post("/api/production-plans/{plan_run_id}/brews/{brew_id}/optimize")
+    def optimize_production_plan_brew(
+        plan_run_id: str,
+        brew_id: str,
+        req: ProductionPlanOptimizeRequest,
+    ) -> dict[str, Any]:
+        ensure_db_schema()
+        head = _plan_run_head(plan_run_id)
+        _assert_expected_last_event(plan_run_id, req.expected_last_event_id)
+        _activate_plan_run_state(plan_run_id)
+        rows = fetchall(
+            """
+            SELECT brew_id, brew_index, target_params, status
+            FROM brew_schedule_items
+            WHERE schedule_id = %s AND brew_id = %s
+            """,
+            (str(head.get("schedule_id", "")), brew_id),
+        )
+        if not rows:
+            raise HTTPException(status_code=404, detail="schedule item not found")
+        brew_row = rows[0]
+        target_params = _json_obj(brew_row.get("target_params"))
+        progress_now = _workflow_progress(str(head.get("schedule_id", "")))
+        _update_plan_run(
+            plan_run_id,
+            current_stage="optimizing",
+            current_message=f"Optimizing {brew_id}...",
+            progress_pct=progress_now,
+            current_brew_id=brew_id,
+            current_brew_index=int(brew_row.get("brew_index", 0) or 0),
+        )
+        _, optimize_event_id = _optimize_brew_for_plan_run(
+            optimize_fn=optimize,
+            plan_run_id=plan_run_id,
+            schedule_id=str(head.get("schedule_id", "")),
+            brew_id=brew_id,
+            target_params=target_params,
+            iterations=req.iterations,
+            seed=req.seed,
+            config=req.config,
+            include_all_candidates=req.include_all_candidates,
+        )
+        _update_plan_run(
+            plan_run_id,
+            status="active",
+            current_stage="awaiting_apply",
+            current_message=f"{brew_id} ready for scenario selection.",
+            progress_pct=progress_now,
+            current_brew_id=brew_id,
+            current_brew_index=int(brew_row.get("brew_index", 0) or 0),
+            last_event_id=optimize_event_id,
+        )
+        return _plan_run_response(plan_run_id)
+
+    @app.post("/api/production-plans/{plan_run_id}/brews/{brew_id}/apply")
+    def apply_production_plan_brew(
+        plan_run_id: str,
+        brew_id: str,
+        req: ProductionPlanApplyRequest,
+    ) -> dict[str, Any]:
+        ensure_db_schema()
+        head = _plan_run_head(plan_run_id)
+        _assert_expected_last_event(plan_run_id, req.expected_last_event_id)
+        _activate_plan_run_state(plan_run_id)
+        rows = fetchall(
+            """
+            SELECT brew_id, brew_index, optimize_result
+            FROM brew_schedule_items
+            WHERE schedule_id = %s AND brew_id = %s
+            """,
+            (str(head.get("schedule_id", "")), brew_id),
+        )
+        if not rows:
+            raise HTTPException(status_code=404, detail="schedule item not found")
+        opt_result = _json_obj(rows[0].get("optimize_result"))
+        top_candidates = _json_list(opt_result.get("top_candidates"))
+        idx = int(req.candidate_index)
+        if idx < 0 or idx >= len(top_candidates):
+            raise HTTPException(status_code=422, detail="invalid candidate_index for schedule item")
+        selected = top_candidates[idx] if isinstance(top_candidates[idx], dict) else {}
+        discharge_plan = _json_list(selected.get("recommended_discharge"))
+        if not discharge_plan:
+            raise HTTPException(status_code=422, detail="selected candidate has empty recommended_discharge")
+        _update_plan_run(
+            plan_run_id,
+            current_stage="applying",
+            current_message=f"Applying selected scenario for {brew_id}...",
+            progress_pct=_workflow_progress(str(head.get("schedule_id", ""))),
+            current_brew_id=brew_id,
+            current_brew_index=int(rows[0].get("brew_index", 0) or 0),
+        )
+        out = process_apply_discharge(
+            ProcessApplyDischargeRequest(discharge=discharge_plan, config=req.config, plan_run_id=plan_run_id)
+        )
+        apply_rows = fetchall(
+            """
+            SELECT id
+            FROM sim_events
+            WHERE plan_run_id = %s AND event_type = 'apply_discharge'
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (plan_run_id,),
+        )
+        applied_event_id = int(apply_rows[0].get("id")) if apply_rows else None
+        execute(
+            """
+            UPDATE brew_schedule_items
+            SET status = 'applied',
+                selected_candidate_index = %s,
+                applied_event_id = %s,
+                updated_at = NOW()
+            WHERE schedule_id = %s AND brew_id = %s
+            """,
+            (idx, applied_event_id, str(head.get("schedule_id", "")), brew_id),
+        )
+        items = _schedule_items(str(head.get("schedule_id", "")))
+        next_brew = _pick_current_brew(items)
+        if next_brew is None:
+            _update_plan_run(
+                plan_run_id,
+                status="completed",
+                current_stage="completed",
+                current_message=f"{brew_id} applied. Production plan completed.",
+                progress_pct=100.0,
+                current_brew_id=brew_id,
+                current_brew_index=int(rows[0].get("brew_index", 0) or 0),
+                last_event_id=applied_event_id,
+                completed=True,
+            )
+            return _plan_run_response(plan_run_id)
+        if str(next_brew.get("status", "")) != "optimized":
+            _update_plan_run(
+                plan_run_id,
+                current_stage="optimizing",
+                current_message=f"{brew_id} applied. Optimizing {str(next_brew.get('brew_id', 'next brew'))}...",
+                progress_pct=_workflow_progress(str(head.get("schedule_id", ""))),
+                current_brew_id=str(next_brew.get("brew_id", "")),
+                current_brew_index=int(next_brew.get("brew_index", 0) or 0),
+                last_event_id=applied_event_id,
+            )
+            _optimize_brew_for_plan_run(
+                optimize_fn=optimize,
+                plan_run_id=plan_run_id,
+                schedule_id=str(head.get("schedule_id", "")),
+                brew_id=str(next_brew.get("brew_id", "")),
+                target_params=_json_obj(next_brew.get("target_params")),
+                iterations=80,
+                seed=42,
+                config=req.config,
+                include_all_candidates=False,
+            )
+        optimize_rows = fetchall(
+            """
+            SELECT id
+            FROM sim_events
+            WHERE plan_run_id = %s
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (plan_run_id,),
+        )
+        latest_event_id = int(optimize_rows[0].get("id")) if optimize_rows else applied_event_id
+        _update_plan_run(
+            plan_run_id,
+            status="active",
+            current_stage="awaiting_apply",
+            current_message=f"{str(next_brew.get('brew_id', 'Next brew'))} ready for scenario selection.",
+            progress_pct=_workflow_progress(str(head.get("schedule_id", ""))),
+            current_brew_id=str(next_brew.get("brew_id", "")),
+            current_brew_index=int(next_brew.get("brew_index", 0) or 0),
+            last_event_id=latest_event_id,
+        )
+        return _plan_run_response(plan_run_id)
 
     @app.post("/api/schedules/{schedule_id}/items/{brew_id}/optimize")
     def optimize_schedule_item(schedule_id: str, brew_id: str, req: ScheduleOptimizeRequest) -> dict[str, Any]:
@@ -1903,12 +2919,14 @@ def create_app() -> FastAPI:
             "suppliers": pd.DataFrame(req.suppliers),
             "discharge": pd.DataFrame(req.discharge),
         }
+        live_queue: list[dict[str, Any]] = []
         if bool(req.use_latest_state):
             _ensure_state_initialized()
             live = get_state()
             inputs["silos"] = pd.DataFrame(live.get("silos", []))
             inputs["layers"] = pd.DataFrame(live.get("layers", []))
             inputs["suppliers"] = pd.DataFrame(live.get("suppliers", []))
+            live_queue = list(live.get("incoming_queue", []) or [])
         inputs = _ensure_suppliers_dataframe(inputs)
         inputs = _ensure_discharge_has_silo_ids(inputs)
         errors = validate_inputs_shape(inputs)
@@ -1974,6 +2992,7 @@ def create_app() -> FastAPI:
             if isinstance(filled_suppliers, list) and filled_suppliers:
                 inputs["suppliers"] = pd.DataFrame(filled_suppliers)
                 suppliers_df = inputs["suppliers"].copy()
+            live_queue = list(filled_state.get("incoming_queue", []) or [])
             feasibility_warnings = _compute_feasibility_warnings(
                 layers_df=layers_df,
                 suppliers_df=suppliers_df,
@@ -1990,10 +3009,16 @@ def create_app() -> FastAPI:
                         f"{FIXED_DISCHARGE_TARGET_KG:.3f} kg. Currently available: {available_total:.3f} kg."
                     ),
                 )
+
+        _write_lot_coas_csv(
+            layers_df=layers_df,
+            suppliers_df=suppliers_df,
+            incoming_queue=live_queue,
+            output_dir=Path("outputs"),
+        )
         validation_ended_at = time.perf_counter()
         search_started_at = validation_ended_at
         silo_ids = silos_df["silo_id"].astype(str).tolist()
-        rng = random.Random(req.seed)
         total_iter = max(1, req.iterations)
         explore_iters = max(1, int(total_iter * 0.6))
         exploit_iters = total_iter - explore_iters
@@ -2044,6 +3069,7 @@ def create_app() -> FastAPI:
 
         # Explore: stratified random sampling in discharge range to improve coverage.
         for i in range(explore_iters):
+            rng = random.Random(req.seed + i)
             band_lo = DISCHARGE_FRACTION_MIN + (
                 (DISCHARGE_FRACTION_MAX - DISCHARGE_FRACTION_MIN) * i / explore_iters
             )
@@ -2058,6 +3084,7 @@ def create_app() -> FastAPI:
         if not best_fractions:
             best_fractions = [0.5 for _ in silo_ids]
         for i in range(exploit_iters):
+            rng = random.Random(req.seed + explore_iters + i)
             anneal = 1.0 - (i / max(1, exploit_iters))
             step = 0.12 * anneal + 0.01
             trial = [_clip_fraction(f + rng.uniform(-step, step)) for f in best_fractions]
@@ -2084,7 +3111,13 @@ def create_app() -> FastAPI:
                 cand["objective_score"] = float(sc)
         all_evaluated_candidates = json.loads(json.dumps(top_candidates))
 
-        selected_optimized = _pick_diverse_candidates_by_param_deltas(top_candidates, k=4)
+        diversity_silo_ids = sorted(str(sid) for sid in silo_ids)
+        selected_optimized = _pick_diverse_candidates_by_fraction_distance(
+            top_candidates,
+            silo_ids=diversity_silo_ids,
+            k=4,
+            min_dist=0.35,
+        )
         if len(selected_optimized) < 4 and top_candidates:
             for cand in sorted(top_candidates, key=lambda x: float(x.get("objective_score", float("inf")))):
                 if len(selected_optimized) >= 4:
@@ -2102,6 +3135,31 @@ def create_app() -> FastAPI:
             target_total_kg=FIXED_DISCHARGE_TARGET_KG,
         )
         top_candidates = top_candidates + [standard_candidate]
+
+        # Ask the brewmaster ML model which candidate it would select.
+        top_candidates = _brewmaster_score_candidates(top_candidates, seed=req.seed)
+
+        # Sort by ML probability descending so index-0 is always the predicted pick.
+        scored = [c for c in top_candidates if c.get("brewmaster_prob_selected") is not None]
+        unscored = [c for c in top_candidates if c.get("brewmaster_prob_selected") is None]
+        top_candidates = (
+            sorted(scored, key=lambda c: c["brewmaster_prob_selected"], reverse=True)
+            + unscored
+        )
+
+        # Surface the winner explicitly for easy frontend access.
+        brewmaster_recommendation = None
+        if top_candidates and top_candidates[0].get("brewmaster_prob_selected") is not None:
+            winner = top_candidates[0]
+            brewmaster_recommendation = {
+                "candidate_num":            winner.get("candidate_num"),
+                "prob_selected":            winner["brewmaster_prob_selected"],
+                "blended_params":           winner.get("blended_params"),
+                "recommended_discharge":    winner.get("recommended_discharge"),
+                "objective_score":          winner.get("objective_score"),
+                "total_discharged_mass_kg": winner.get("total_discharged_mass_kg"),
+            }
+
         out = {
             "objective_score": best_score,
             "recommended_discharge": best_discharge,
@@ -2122,6 +3180,7 @@ def create_app() -> FastAPI:
             "pre_fill_available_kg": float(pre_fill_available_kg),
             "post_fill_available_kg": float(post_fill_available_kg),
             "top_candidates": top_candidates,
+            "brewmaster_recommendation": brewmaster_recommendation,
             "standard_scenario": standard_candidate,
             "config_used": {
                 "rho_bulk_kg_m3": float(cfg.rho_bulk_kg_m3),
@@ -2140,6 +3199,7 @@ def create_app() -> FastAPI:
         db_ms_total = 0.0
         db_started_at = time.perf_counter()
         sim_event_id = _write_sim_event(
+            plan_run_id=req.plan_run_id,
             event_type="optimize",
             action="optimize",
             total_discharged_mass_kg=float(out.get("best_run", {}).get("total_discharged_mass_kg", 0.0)),
@@ -2158,6 +3218,7 @@ def create_app() -> FastAPI:
             execute(
                 """
                 INSERT INTO results_optimize (
+                    plan_run_id,
                     sim_event_id,
                     objective_score,
                     recommended_discharge,
@@ -2165,9 +3226,10 @@ def create_app() -> FastAPI:
                     top_candidates,
                     best_run
                 )
-                VALUES (%s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb)
+                VALUES (%s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb, %s::jsonb)
                 """,
                 (
+                    req.plan_run_id,
                     sim_event_id,
                     float(out["objective_score"]),
                     json.dumps(out["recommended_discharge"]),

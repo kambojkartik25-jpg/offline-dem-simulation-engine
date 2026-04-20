@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS results_run (
 
 CREATE TABLE IF NOT EXISTS results_optimize (
     id BIGSERIAL PRIMARY KEY,
+    plan_run_id TEXT,
     sim_event_id BIGINT,
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     objective_score DOUBLE PRECISION NOT NULL,
@@ -117,6 +118,7 @@ CREATE TABLE IF NOT EXISTS results_optimize (
 
 CREATE TABLE IF NOT EXISTS discharge_results (
     id BIGSERIAL PRIMARY KEY,
+    plan_run_id TEXT,
     sim_event_id BIGINT,
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     discharge_by_silo JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -127,6 +129,7 @@ CREATE TABLE IF NOT EXISTS discharge_results (
 
 CREATE TABLE IF NOT EXISTS sim_events (
     id BIGSERIAL PRIMARY KEY,
+    plan_run_id TEXT,
     timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     event_type TEXT NOT NULL,
     action TEXT,
@@ -138,6 +141,23 @@ CREATE TABLE IF NOT EXISTS sim_events (
     incoming_queue_count INTEGER,
     incoming_queue_mass_kg DOUBLE PRECISION,
     objective_score DOUBLE PRECISION,
+    meta JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE TABLE IF NOT EXISTS production_plan_runs (
+    plan_run_id TEXT PRIMARY KEY,
+    schedule_id TEXT NOT NULL REFERENCES brew_schedules(schedule_id) ON DELETE CASCADE,
+    name TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    current_stage TEXT NOT NULL DEFAULT 'created',
+    current_message TEXT,
+    progress_pct DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    current_brew_id TEXT,
+    current_brew_index INTEGER,
+    last_event_id BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_at TIMESTAMPTZ,
     meta JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
@@ -164,6 +184,63 @@ CREATE TABLE IF NOT EXISTS brew_schedule_items (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(schedule_id, brew_id),
     UNIQUE(schedule_id, brew_index)
+);
+
+CREATE TABLE IF NOT EXISTS tracked_schedules (
+    id BIGSERIAL PRIMARY KEY,
+    schedule_id TEXT NOT NULL UNIQUE,
+    name TEXT,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tracked_brews (
+    id BIGSERIAL PRIMARY KEY,
+    schedule_id TEXT NOT NULL REFERENCES tracked_schedules(schedule_id) ON DELETE CASCADE,
+    brew_id TEXT NOT NULL,
+    brew_index INTEGER NOT NULL,
+    target_params JSONB NOT NULL DEFAULT '{}'::jsonb,
+    target_discharge_kg DOUBLE PRECISION NOT NULL DEFAULT 12000.0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    selected_candidate_index INTEGER,
+    applied_event_id BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(schedule_id, brew_id),
+    UNIQUE(schedule_id, brew_index)
+);
+
+CREATE TABLE IF NOT EXISTS tracked_scenarios (
+    id BIGSERIAL PRIMARY KEY,
+    schedule_id TEXT NOT NULL REFERENCES tracked_schedules(schedule_id) ON DELETE CASCADE,
+    brew_id TEXT NOT NULL,
+    scenario_index INTEGER NOT NULL,
+    scenario_type TEXT,
+    objective_score DOUBLE PRECISION,
+    recommended_discharge JSONB NOT NULL DEFAULT '[]'::jsonb,
+    scenario_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(schedule_id, brew_id, scenario_index),
+    FOREIGN KEY (schedule_id, brew_id) REFERENCES tracked_brews(schedule_id, brew_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS tracked_applied_scenarios (
+    id BIGSERIAL PRIMARY KEY,
+    schedule_id TEXT NOT NULL REFERENCES tracked_schedules(schedule_id) ON DELETE CASCADE,
+    brew_id TEXT NOT NULL,
+    scenario_index INTEGER NOT NULL,
+    scenario_id BIGINT REFERENCES tracked_scenarios(id) ON DELETE SET NULL,
+    applied_event_id BIGINT,
+    plan_run_id TEXT,
+    reason TEXT NOT NULL,
+    recommended_discharge JSONB NOT NULL DEFAULT '[]'::jsonb,
+    scenario_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(schedule_id, brew_id),
+    FOREIGN KEY (schedule_id, brew_id) REFERENCES tracked_brews(schedule_id, brew_id) ON DELETE CASCADE
 );
 """
 
@@ -204,6 +281,11 @@ def ensure_schema() -> None:
             conn.execute("ALTER TABLE layers ADD COLUMN IF NOT EXISTS loaded_mass DOUBLE PRECISION")
             conn.execute("ALTER TABLE discharge_results ADD COLUMN IF NOT EXISTS sim_event_id BIGINT")
             conn.execute("ALTER TABLE results_optimize ADD COLUMN IF NOT EXISTS sim_event_id BIGINT")
+            conn.execute("ALTER TABLE sim_events ADD COLUMN IF NOT EXISTS plan_run_id TEXT")
+            conn.execute("ALTER TABLE results_optimize ADD COLUMN IF NOT EXISTS plan_run_id TEXT")
+            conn.execute("ALTER TABLE discharge_results ADD COLUMN IF NOT EXISTS plan_run_id TEXT")
+            conn.execute("ALTER TABLE production_plan_runs ADD COLUMN IF NOT EXISTS current_message TEXT")
+            conn.execute("ALTER TABLE production_plan_runs ADD COLUMN IF NOT EXISTS progress_pct DOUBLE PRECISION NOT NULL DEFAULT 0.0")
             conn.execute(
                 """
                 DO $$
@@ -228,5 +310,14 @@ def ensure_schema() -> None:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_layers_sim_event_id ON layers(sim_event_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_discharge_results_sim_event_id ON discharge_results(sim_event_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_results_optimize_sim_event_id ON results_optimize(sim_event_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sim_events_plan_run_id ON sim_events(plan_run_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_results_optimize_plan_run_id ON results_optimize(plan_run_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_discharge_results_plan_run_id ON discharge_results(plan_run_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_brew_schedule_items_schedule_id ON brew_schedule_items(schedule_id)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_brew_schedule_items_status ON brew_schedule_items(status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_production_plan_runs_status ON production_plan_runs(status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_production_plan_runs_schedule_id ON production_plan_runs(schedule_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tracked_brews_schedule_id ON tracked_brews(schedule_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tracked_brews_status ON tracked_brews(status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tracked_scenarios_schedule_brew ON tracked_scenarios(schedule_id, brew_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tracked_applied_scenarios_schedule_brew ON tracked_applied_scenarios(schedule_id, brew_id)")

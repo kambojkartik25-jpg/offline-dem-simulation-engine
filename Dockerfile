@@ -6,12 +6,20 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN set -e; \
+		pip install --no-cache-dir \
+			--trusted-host pypi.org \
+			--trusted-host files.pythonhosted.org \
+			-r /app/requirements.txt
 
 COPY pyproject.toml /app/pyproject.toml
 COPY src /app/src
 
-RUN pip install --no-cache-dir -e .
+RUN set -e; \
+		pip install --no-cache-dir \
+			--trusted-host pypi.org \
+			--trusted-host files.pythonhosted.org \
+			-e .
 
 EXPOSE 8000
 

@@ -2,11 +2,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import erf, pi, sqrt
+from pathlib import Path
 from typing import Dict
 import warnings
 
+import joblib
 import numpy as np
 import pandas as pd
+
+_RF_MODEL: object | None = None
+_RF_MODEL_PATH = Path(__file__).with_name("random_forest.joblib")
 
 
 @dataclass(frozen=True)
@@ -272,12 +277,12 @@ def _simulate_for_sigma(
     """Time-stepped silo discharge simulation.
 
     Physics improvements (all default to off at 0.0):
-      moisture_beta : cohesion correction — Q_eff = Q * exp(-beta * moisture_pct).
+      moisture_beta : cohesion correction ? Q_eff = Q * exp(-beta * moisture_pct).
                       Uses per-layer moisture_pct weighted by current discharge
                       probability. Requires layer_moisture array.
-      sigma_alpha   : sigma height-scaling — sigma(t) = sigma_0 * (h_remaining /
+      sigma_alpha   : sigma height-scaling ? sigma(t) = sigma_0 * (h_remaining /
                       h_initial) ** alpha. Mixing narrows as silo empties.
-      skew_alpha    : asymmetric mixing kernel — negative values bias discharge
+      skew_alpha    : asymmetric mixing kernel ? negative values bias discharge
                       mass toward layers below the front (hopper convergence zone).
     """
     if steps <= 0:
@@ -286,6 +291,75 @@ def _simulate_for_sigma(
         raise ValueError("m_dot_kg_s must be > 0.")
     if sigma_m <= 0:
         raise ValueError("sigma_m must be > 0.")
+
+    # Original Gaussian kernel implementation (commented out, kept for reference).
+    #
+    # seg = intervals_df.copy()
+    # seg["discharged_mass_kg"] = 0.0
+    # if discharge_mass_kg == 0:
+    #     return seg
+    #
+    # discharge_time_s = discharge_mass_kg / m_dot_kg_s
+    # dt = discharge_time_s / steps
+    # dm = m_dot_kg_s * dt
+    # area = silo.cross_section_area_m2
+    # z0 = seg["z0_m"].to_numpy(dtype=float)
+    # z1 = seg["z1_m"].to_numpy(dtype=float)
+    # discharged = np.zeros_like(z0, dtype=float)
+    #
+    # for i in range(steps):
+    #     t_mid = (i + 0.5) * dt
+    #     m_removed = min(discharge_mass_kg, m_dot_kg_s * t_mid)
+    #     z_front = m_removed / (material.rho_bulk_kg_m3 * area)
+    #
+    #     # Feature 2: sigma scales down as remaining height shrinks.
+    #     # sigma_eff = sigma_0 * (h_remaining / h_initial) ** alpha
+    #     # At alpha=0.0 this is a no-op (1.0 ** 0 = 1.0).
+    #     if sigma_alpha != 0.0 and total_height_m > 0:
+    #         h_remaining = max(total_height_m - z_front, 0.0)
+    #         sigma_eff = sigma_m * max(
+    #             (h_remaining / total_height_m) ** sigma_alpha, 1e-9
+    #         )
+    #     else:
+    #         sigma_eff = sigma_m
+    #
+    #     denom = normal_cdf((total_height_m - z_front) / sigma_eff) - normal_cdf(
+    #         (0.0 - z_front) / sigma_eff
+    #     )
+    #     if denom <= 1e-15:
+    #         continue
+    #     p_raw = (
+    #         _normal_cdf_array((z1 - z_front) / sigma_eff)
+    #         - _normal_cdf_array((z0 - z_front) / sigma_eff)
+    #     ) / denom
+    #     p_raw = np.clip(p_raw, a_min=0.0, a_max=None)
+    #
+    #     # Feature 3: apply exponential asymmetric tilt (skew-normal mixing kernel).
+    #     if skew_alpha != 0.0:
+    #         z_centers = (z0 + z1) / 2.0
+    #         p_raw = p_raw * _skew_tilt(z_centers, z_front, sigma_eff, skew_alpha)
+    #
+    #     s = float(p_raw.sum())
+    #     if s <= 0:
+    #         continue
+    #     p_norm = p_raw / s
+    #
+    #     # Feature 1: moisture-dependent cohesion reduces effective dm per step.
+    #     # dm_eff = dm * exp(-beta * moisture_eff)
+    #     # At beta=0.0 this is dm * exp(0) = dm (no-op).
+    #     if moisture_beta != 0.0 and layer_moisture is not None:
+    #         moisture_eff = float(np.dot(p_norm, layer_moisture))
+    #         dm_eff = dm * np.exp(-moisture_beta * moisture_eff)
+    #     else:
+    #         dm_eff = dm
+    #
+    #     discharged += dm_eff * p_norm
+    #
+    # total_sim = float(discharged.sum())
+    # if total_sim > 0:
+    #     discharged *= discharge_mass_kg / total_sim
+    # seg["discharged_mass_kg"] = discharged
+    # return seg
 
     seg = intervals_df.copy()
     seg["discharged_mass_kg"] = 0.0
@@ -310,9 +384,7 @@ def _simulate_for_sigma(
         # At alpha=0.0 this is a no-op (1.0 ** 0 = 1.0).
         if sigma_alpha != 0.0 and total_height_m > 0:
             h_remaining = max(total_height_m - z_front, 0.0)
-            sigma_eff = sigma_m * max(
-                (h_remaining / total_height_m) ** sigma_alpha, 1e-9
-            )
+            sigma_eff = sigma_m * max((h_remaining / total_height_m) ** sigma_alpha, 1e-9)
         else:
             sigma_eff = sigma_m
 
@@ -351,8 +423,10 @@ def _simulate_for_sigma(
     total_sim = float(discharged.sum())
     if total_sim > 0:
         discharged *= discharge_mass_kg / total_sim
+
     seg["discharged_mass_kg"] = discharged
     return seg
+
 
 
 def estimate_discharge_contrib_for_silo(

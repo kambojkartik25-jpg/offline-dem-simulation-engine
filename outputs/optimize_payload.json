@@ -1,0 +1,2705 @@
+{
+  "objective_score": 0.3962466025988976,
+  "recommended_discharge": [
+    {
+      "silo_id": "S1",
+      "discharge_mass_kg": 2348.818134,
+      "discharge_fraction": 0.293602
+    },
+    {
+      "silo_id": "S2",
+      "discharge_mass_kg": 3901.051376,
+      "discharge_fraction": 0.487631
+    },
+    {
+      "silo_id": "S3",
+      "discharge_mass_kg": 2750.13049,
+      "discharge_fraction": 0.343766
+    }
+  ],
+  "best_run": {
+    "total_discharged_mass_kg": 9000,
+    "total_remaining_mass_kg": 15000,
+    "total_blended_params": {
+      "moisture_pct": 4.306553677863368,
+      "fine_extract_db_pct": 81.6677425555244,
+      "wort_pH": 5.9581980898187075,
+      "diastatic_power_WK": 331.2460235428422,
+      "total_protein_pct": 10.606645286777148,
+      "wort_colour_EBC": 3.8743102826330458
+    },
+    "silo_state_ledger": [
+      {
+        "silo_id": "S1",
+        "initial_mass_kg": 8000,
+        "discharged_mass_kg": 2348.8181340000006,
+        "remaining_mass_kg": 5651.181865999999,
+        "remaining_pct": 70.639773325
+      },
+      {
+        "silo_id": "S2",
+        "initial_mass_kg": 8000,
+        "discharged_mass_kg": 3901.051376000001,
+        "remaining_mass_kg": 4098.948624,
+        "remaining_pct": 51.236857799999996
+      },
+      {
+        "silo_id": "S3",
+        "initial_mass_kg": 8000,
+        "discharged_mass_kg": 2750.1304900000005,
+        "remaining_mass_kg": 5249.8695099999995,
+        "remaining_pct": 65.623368875
+      }
+    ],
+    "per_silo": {
+      "S1": {
+        "discharged_mass_kg": 2348.818134,
+        "mass_flow_rate_kg_s": 18.46430578112723,
+        "discharge_time_s": 127.20858080680067,
+        "sigma_m": 0.12,
+        "blended_params_per_silo": {
+          "moisture_pct": 4.261722186503365,
+          "fine_extract_db_pct": 81.79250370804183,
+          "wort_pH": 5.967693184205334,
+          "diastatic_power_WK": 335.9662883296943,
+          "total_protein_pct": 10.399531354437874,
+          "wort_colour_EBC": 3.840897314295536
+        }
+      },
+      "S2": {
+        "discharged_mass_kg": 3901.051376,
+        "mass_flow_rate_kg_s": 18.46430578112723,
+        "discharge_time_s": 211.27528011301402,
+        "sigma_m": 0.12,
+        "blended_params_per_silo": {
+          "moisture_pct": 4.337901598436575,
+          "fine_extract_db_pct": 81.71895780152904,
+          "wort_pH": 5.948591898963021,
+          "diastatic_power_WK": 326.53123157914837,
+          "total_protein_pct": 10.773224309476673,
+          "wort_colour_EBC": 3.917452941288807
+        }
+      },
+      "S3": {
+        "discharged_mass_kg": 2750.13049,
+        "mass_flow_rate_kg_s": 20.93122089140127,
+        "discharge_time_s": 131.38891917813442,
+        "sigma_m": 0.12,
+        "blended_params_per_silo": {
+          "moisture_pct": 4.30037621506006,
+          "fine_extract_db_pct": 81.48853849042912,
+          "wort_pH": 5.963714916831645,
+          "diastatic_power_WK": 333.9024800911574,
+          "total_protein_pct": 10.547244336085454,
+          "wort_colour_EBC": 3.841649744415657
+        }
+      }
+    }
+  },
+  "target_params": {
+    "moisture_pct": 4.5,
+    "fine_extract_db_pct": 81,
+    "wort_pH": 5.8,
+    "diastatic_power_WK": 250,
+    "total_protein_pct": 10.8,
+    "wort_colour_EBC": 3.5
+  },
+  "feasibility_warnings": [
+    {
+      "param": "moisture_pct",
+      "target": 4.5,
+      "achievable_min": 4.2,
+      "achievable_max": 4.4,
+      "direction": "above",
+      "message": "moisture_pct: target 4.5 is above the achievable inventory range [4.2 – 4.4]"
+    },
+    {
+      "param": "fine_extract_db_pct",
+      "target": 81,
+      "achievable_min": 81.2,
+      "achievable_max": 82,
+      "direction": "below",
+      "message": "fine_extract_db_pct: target 81 is below the achievable inventory range [81.2 – 82]"
+    },
+    {
+      "param": "wort_pH",
+      "target": 5.8,
+      "achievable_min": 5.93,
+      "achievable_max": 5.98,
+      "direction": "below",
+      "message": "wort_pH: target 5.8 is below the achievable inventory range [5.93 – 5.98]"
+    },
+    {
+      "param": "diastatic_power_WK",
+      "target": 250,
+      "achievable_min": 317.4,
+      "achievable_max": 342.1,
+      "direction": "below",
+      "message": "diastatic_power_WK: target 250 is below the achievable inventory range [317.4 – 342.1]"
+    },
+    {
+      "param": "wort_colour_EBC",
+      "target": 3.5,
+      "achievable_min": 3.8,
+      "achievable_max": 4,
+      "direction": "below",
+      "message": "wort_colour_EBC: target 3.5 is below the achievable inventory range [3.8 – 4]"
+    }
+  ],
+  "coa_warnings": [],
+  "fixed_discharge_target_kg": 9000,
+  "iterations": 80,
+  "iterations_effective": 80,
+  "explore_iterations": 48,
+  "exploit_iterations": 32,
+  "objective_method": "normalized_weighted_l2_hybrid_search",
+  "param_ranges": {
+    "moisture_pct": 5,
+    "fine_extract_db_pct": 2,
+    "wort_pH": 0.20000000000000018,
+    "diastatic_power_WK": 60,
+    "total_protein_pct": 1,
+    "wort_colour_EBC": 0.40000000000000036
+  },
+  "param_weights": {
+    "moisture_pct": 0.07,
+    "fine_extract_db_pct": 0.25,
+    "wort_pH": 0.2,
+    "diastatic_power_WK": 0.3,
+    "total_protein_pct": 0.15,
+    "wort_colour_EBC": 0.03
+  },
+  "target_objective_mode": {
+    "moisture_pct": "max",
+    "fine_extract_db_pct": "min",
+    "diastatic_power_WK": "min"
+  },
+  "auto_fill_triggered": false,
+  "pre_fill_available_kg": 24000,
+  "post_fill_available_kg": 24000,
+  "top_candidates": [
+    {
+      "objective_score": 0.3962466025988976,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2348.818134,
+          "discharge_fraction": 0.293602
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3901.051376,
+          "discharge_fraction": 0.487631
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2750.13049,
+          "discharge_fraction": 0.343766
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.306553677863368,
+        "fine_extract_db_pct": 81.6677425555244,
+        "wort_pH": 5.9581980898187075,
+        "diastatic_power_WK": 331.2460235428422,
+        "total_protein_pct": 10.606645286777148,
+        "wort_colour_EBC": 3.8743102826330458
+      },
+      "total_discharged_mass_kg": 9000,
+      "scenario_type": "optimized"
+    },
+    {
+      "objective_score": 0.39660957309741124,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2543.810062,
+          "discharge_fraction": 0.317976
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3912.379876,
+          "discharge_fraction": 0.489047
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2543.810062,
+          "discharge_fraction": 0.317976
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.305763442613627,
+        "fine_extract_db_pct": 81.67461822985693,
+        "wort_pH": 5.95826524636508,
+        "diastatic_power_WK": 331.2814591826962,
+        "total_protein_pct": 10.603729417337862,
+        "wort_colour_EBC": 3.874389395823708
+      },
+      "total_discharged_mass_kg": 9000,
+      "scenario_type": "optimized"
+    },
+    {
+      "objective_score": 0.39662525884887095,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2545.454545,
+          "discharge_fraction": 0.318182
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3909.090909,
+          "discharge_fraction": 0.488636
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2545.454545,
+          "discharge_fraction": 0.318182
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.305742666431954,
+        "fine_extract_db_pct": 81.67458956589125,
+        "wort_pH": 5.958271499842228,
+        "diastatic_power_WK": 331.28453003692397,
+        "total_protein_pct": 10.603619844881646,
+        "wort_colour_EBC": 3.874361556763837
+      },
+      "total_discharged_mass_kg": 8999.999999,
+      "scenario_type": "optimized"
+    },
+    {
+      "objective_score": 0.396696155957589,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2552.881109,
+          "discharge_fraction": 0.31911
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3894.237783,
+          "discharge_fraction": 0.48678
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2552.881109,
+          "discharge_fraction": 0.31911
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.305648840223614,
+        "fine_extract_db_pct": 81.67446011808121,
+        "wort_pH": 5.958299740837566,
+        "diastatic_power_WK": 331.2983981582701,
+        "total_protein_pct": 10.603125010543605,
+        "wort_colour_EBC": 3.87423583426716
+      },
+      "total_discharged_mass_kg": 9000.000001,
+      "scenario_type": "optimized"
+    },
+    {
+      "scenario_type": "standard_equal_split",
+      "feasible": true,
+      "required_per_silo_kg": 3000,
+      "objective_score": 0.40114211945394307,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3000,
+          "discharge_fraction": 0.375
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3000,
+          "discharge_fraction": 0.375
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3000,
+          "discharge_fraction": 0.375
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300000000000002,
+        "fine_extract_db_pct": 81.6666666666667,
+        "wort_pH": 5.960000000000001,
+        "diastatic_power_WK": 332.13333333333344,
+        "total_protein_pct": 10.573333333333336,
+        "wort_colour_EBC": 3.8666666666666685
+      },
+      "total_discharged_mass_kg": 9000
+    }
+  ],
+  "standard_scenario": {
+    "scenario_type": "standard_equal_split",
+    "feasible": true,
+    "required_per_silo_kg": 3000,
+    "objective_score": 0.40114211945394307,
+    "recommended_discharge": [
+      {
+        "silo_id": "S1",
+        "discharge_mass_kg": 3000,
+        "discharge_fraction": 0.375
+      },
+      {
+        "silo_id": "S2",
+        "discharge_mass_kg": 3000,
+        "discharge_fraction": 0.375
+      },
+      {
+        "silo_id": "S3",
+        "discharge_mass_kg": 3000,
+        "discharge_fraction": 0.375
+      }
+    ],
+    "blended_params": {
+      "moisture_pct": 4.300000000000002,
+      "fine_extract_db_pct": 81.6666666666667,
+      "wort_pH": 5.960000000000001,
+      "diastatic_power_WK": 332.13333333333344,
+      "total_protein_pct": 10.573333333333336,
+      "wort_colour_EBC": 3.8666666666666685
+    },
+    "total_discharged_mass_kg": 9000
+  },
+  "config_used": {
+    "rho_bulk_kg_m3": 610,
+    "grain_diameter_m": 0.004,
+    "beverloo_c": 0.58,
+    "beverloo_k": 1.4,
+    "gravity_m_s2": 9.81,
+    "sigma_m": 0.12,
+    "steps": 800,
+    "auto_adjust": true
+  },
+  "all_evaluated_candidates": [
+    {
+      "objective_score": 0.4011172924773734,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2984.941756,
+          "discharge_fraction": 0.373118
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2997.727057,
+          "discharge_fraction": 0.374716
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3017.331187,
+          "discharge_fraction": 0.377166
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300055196526237,
+        "fine_extract_db_pct": 81.66609989862506,
+        "wort_pH": 5.9599971631152,
+        "diastatic_power_WK": 332.13174189996465,
+        "total_protein_pct": 10.57352340650233,
+        "wort_colour_EBC": 3.8666487815478474
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.40117488961731923,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3006.093058,
+          "discharge_fraction": 0.375762
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2995.291728,
+          "discharge_fraction": 0.374411
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2998.615214,
+          "discharge_fraction": 0.374827
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.29995419989447,
+        "fine_extract_db_pct": 81.66675191121223,
+        "wort_pH": 5.96001060478838,
+        "diastatic_power_WK": 332.1385867495858,
+        "total_protein_pct": 10.573115111228242,
+        "wort_colour_EBC": 3.8666265014811434
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4011578996194524,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2998.623601,
+          "discharge_fraction": 0.374828
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2995.320242,
+          "discharge_fraction": 0.374415
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3006.056157,
+          "discharge_fraction": 0.375757
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.2999863992948,
+        "fine_extract_db_pct": 81.66650036844045,
+        "wort_pH": 5.960007255153403,
+        "diastatic_power_WK": 332.136850559511,
+        "total_protein_pct": 10.57323842004577,
+        "wort_colour_EBC": 3.86662736611412
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.40116476336668494,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3001.877347,
+          "discharge_fraction": 0.375235
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2995.440729,
+          "discharge_fraction": 0.37443
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3002.681924,
+          "discharge_fraction": 0.375335
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299972927175917,
+        "fine_extract_db_pct": 81.66661334490072,
+        "wort_pH": 5.960008490947235,
+        "diastatic_power_WK": 332.1374980004199,
+        "total_protein_pct": 10.57318804305975,
+        "wort_colour_EBC": 3.8666281089011503
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.40123099887672153,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3016.65345,
+          "discharge_fraction": 0.377082
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2987.311657,
+          "discharge_fraction": 0.373414
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2996.034893,
+          "discharge_fraction": 0.374504
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299875571348072,
+        "fine_extract_db_pct": 81.66690427003334,
+        "wort_pH": 5.960028681990522,
+        "diastatic_power_WK": 332.14754427297424,
+        "total_protein_pct": 10.572741417536918,
+        "wort_colour_EBC": 3.8665584058311313
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4012211946136869,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3022.900763,
+          "discharge_fraction": 0.377863
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2993.233865,
+          "discharge_fraction": 0.374154
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2983.865371,
+          "discharge_fraction": 0.372983
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299873432382518,
+        "fine_extract_db_pct": 81.66726688749134,
+        "wort_pH": 5.960021492192789,
+        "diastatic_power_WK": 332.1441264049045,
+        "total_protein_pct": 10.57278758322595,
+        "wort_colour_EBC": 3.8666077637930694
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.4011635637255732,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2987.938409,
+          "discharge_fraction": 0.373492
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2987.938409,
+          "discharge_fraction": 0.373492
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3024.123182,
+          "discharge_fraction": 0.378015
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.3000015125840605,
+        "fine_extract_db_pct": 81.66595049693089,
+        "wort_pH": 5.960014935935809,
+        "diastatic_power_WK": 332.14044624153735,
+        "total_protein_pct": 10.573228441728533,
+        "wort_colour_EBC": 3.8665660853719106
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.40110337474482294,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2992.714788,
+          "discharge_fraction": 0.374089
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3005.526712,
+          "discharge_fraction": 0.375691
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3001.758499,
+          "discharge_fraction": 0.37522
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.30005433275322,
+        "fine_extract_db_pct": 81.6665621122554,
+        "wort_pH": 5.959987492990082,
+        "diastatic_power_WK": 332.1271362166747,
+        "total_protein_pct": 10.573591671849277,
+        "wort_colour_EBC": 3.866713824897311
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.40115806085177413,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2997.77338,
+          "discharge_fraction": 0.374722
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2994.804552,
+          "discharge_fraction": 0.374351
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3007.422068,
+          "discharge_fraction": 0.375928
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.29998790073945,
+        "fine_extract_db_pct": 81.66645845037979,
+        "wort_pH": 5.960007745862581,
+        "diastatic_power_WK": 332.1370779579599,
+        "total_protein_pct": 10.573239425942043,
+        "wort_colour_EBC": 3.866623093756485
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4010610492836666,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2995.591477,
+          "discharge_fraction": 0.374449
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3017.634093,
+          "discharge_fraction": 0.377204
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2986.774431,
+          "discharge_fraction": 0.373347
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300092459252725,
+        "fine_extract_db_pct": 81.66696924419213,
+        "wort_pH": 5.9599684201129985,
+        "diastatic_power_WK": 332.1178795971011,
+        "total_protein_pct": 10.573848460879699,
+        "wort_colour_EBC": 3.8668155597448535
+      },
+      "total_discharged_mass_kg": 9000.000001
+    },
+    {
+      "objective_score": 0.4012144489487279,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3006.716776,
+          "discharge_fraction": 0.37584
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2985.846794,
+          "discharge_fraction": 0.373231
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3007.436431,
+          "discharge_fraction": 0.37593
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.29991214056311,
+        "fine_extract_db_pct": 81.6665311660138,
+        "wort_pH": 5.960026751146861,
+        "diastatic_power_WK": 332.1464654375633,
+        "total_protein_pct": 10.572867722649898,
+        "wort_colour_EBC": 3.8665468986455256
+      },
+      "total_discharged_mass_kg": 9000.000001
+    },
+    {
+      "objective_score": 0.40117957572886764,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2998.338213,
+          "discharge_fraction": 0.374792
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2989.791881,
+          "discharge_fraction": 0.373724
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3011.869906,
+          "discharge_fraction": 0.376484
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.2999645745759025,
+        "fine_extract_db_pct": 81.66634919186725,
+        "wort_pH": 5.9600164185036695,
+        "diastatic_power_WK": 332.1413129969209,
+        "total_protein_pct": 10.573104293005848,
+        "wort_colour_EBC": 3.8665808269249244
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4012232912794431,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3010.042818,
+          "discharge_fraction": 0.376255
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2985.519657,
+          "discharge_fraction": 0.37319
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3004.437524,
+          "discharge_fraction": 0.375555
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299896491578141,
+        "fine_extract_db_pct": 81.66663512409761,
+        "wort_pH": 5.96002877105527,
+        "diastatic_power_WK": 332.14749607284045,
+        "total_protein_pct": 10.572804919767645,
+        "wort_colour_EBC": 3.8665438652461024
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.40122334607862387,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3013.780432,
+          "discharge_fraction": 0.376723
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2987.597611,
+          "discharge_fraction": 0.37345
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2998.621957,
+          "discharge_fraction": 0.374828
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299889102931771,
+        "fine_extract_db_pct": 81.66681455800914,
+        "wort_pH": 5.960026931532609,
+        "diastatic_power_WK": 332.14665125117256,
+        "total_protein_pct": 10.572795751084962,
+        "wort_colour_EBC": 3.8665610544947584
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4011497787196518,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3003.391363,
+          "discharge_fraction": 0.375424
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3000,
+          "discharge_fraction": 0.375
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2996.608637,
+          "discharge_fraction": 0.374576
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299985434461972,
+        "fine_extract_db_pct": 81.6667812062658,
+        "wort_pH": 5.960001499083196,
+        "diastatic_power_WK": 332.1341110136554,
+        "total_protein_pct": 10.573277672406602,
+        "wort_colour_EBC": 3.86666638313737
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.40118166477993755,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3015.90383,
+          "discharge_fraction": 0.376988
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2999.10401,
+          "discharge_fraction": 0.374888
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2984.99216,
+          "discharge_fraction": 0.373124
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299927958948086,
+        "fine_extract_db_pct": 81.66718086197204,
+        "wort_pH": 5.960008535528976,
+        "diastatic_power_WK": 332.1377141133703,
+        "total_protein_pct": 10.573049813561637,
+        "wort_colour_EBC": 3.8666577905081017
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4011175754150862,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2986.763733,
+          "discharge_fraction": 0.373345
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2998.676373,
+          "discharge_fraction": 0.374835
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3014.559894,
+          "discharge_fraction": 0.37682
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300051329492443,
+        "fine_extract_db_pct": 81.6661857384444,
+        "wort_pH": 5.959996373313958,
+        "diastatic_power_WK": 332.1313821851858,
+        "total_protein_pct": 10.573517339474469,
+        "wort_colour_EBC": 3.866656624911989
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4011568576419187,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2991.709694,
+          "discharge_fraction": 0.373964
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2991.709694,
+          "discharge_fraction": 0.373964
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3016.580612,
+          "discharge_fraction": 0.377073
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.3000010396459905,
+        "fine_extract_db_pct": 81.66617442097058,
+        "wort_pH": 5.960010265932433,
+        "diastatic_power_WK": 332.1382222559937,
+        "total_protein_pct": 10.573261238076526,
+        "wort_colour_EBC": 3.866597534019787
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.40111431899463473,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2999.570969,
+          "discharge_fraction": 0.374946
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3006.649982,
+          "discharge_fraction": 0.375831
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2993.779049,
+          "discharge_fraction": 0.374222
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300029569655613,
+        "fine_extract_db_pct": 81.66682243041889,
+        "wort_pH": 5.959988636155928,
+        "diastatic_power_WK": 332.1277884324849,
+        "total_protein_pct": 10.57350734846707,
+        "wort_colour_EBC": 3.8667227125233987
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.40111432257453217,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2983.902852,
+          "discharge_fraction": 0.372988
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2997.881954,
+          "discharge_fraction": 0.374735
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3018.215193,
+          "discharge_fraction": 0.377277
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300060304347777,
+        "fine_extract_db_pct": 81.66606877648697,
+        "wort_pH": 5.959996443609454,
+        "diastatic_power_WK": 332.1313768016661,
+        "total_protein_pct": 10.573544346863853,
+        "wort_colour_EBC": 3.8666501730384533
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.40115441551400577,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2993.083211,
+          "discharge_fraction": 0.374135
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2993.083211,
+          "discharge_fraction": 0.374135
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3013.833578,
+          "discharge_fraction": 0.376729
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300000867400063,
+        "fine_extract_db_pct": 81.66625597499667,
+        "wort_pH": 5.960008565098626,
+        "diastatic_power_WK": 332.1374122716112,
+        "total_protein_pct": 10.573273182636937,
+        "wort_colour_EBC": 3.866608987742454
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.40115572182868875,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2999.380549,
+          "discharge_fraction": 0.374923
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2996.283295,
+          "discharge_fraction": 0.374535
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3004.336155,
+          "discharge_fraction": 0.375542
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299987163721804,
+        "fine_extract_db_pct": 81.66655058977936,
+        "wort_pH": 5.960005971494524,
+        "diastatic_power_WK": 332.1362353695952,
+        "total_protein_pct": 10.573250177787019,
+        "wort_colour_EBC": 3.8666354142219705
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.40110385339787513,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3004.887984,
+          "discharge_fraction": 0.375611
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3012.219959,
+          "discharge_fraction": 0.376527
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2982.892057,
+          "discharge_fraction": 0.372862
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.3000299575970224,
+        "fine_extract_db_pct": 81.66714461018385,
+        "wort_pH": 5.9599816270054395,
+        "diastatic_power_WK": 332.124445723006,
+        "total_protein_pct": 10.573559938590975,
+        "wort_colour_EBC": 3.8667691815657195
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.40110626652430237,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2991.327731,
+          "discharge_fraction": 0.373916
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3004.033613,
+          "discharge_fraction": 0.375504
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3004.638655,
+          "discharge_fraction": 0.37558
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300054064556385,
+        "fine_extract_db_pct": 81.66647703937475,
+        "wort_pH": 5.9599893887766635,
+        "diastatic_power_WK": 332.12804103713245,
+        "total_protein_pct": 10.57357694694404,
+        "wort_colour_EBC": 3.8667013651179785
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.40111958942027753,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2991.083812,
+          "discharge_fraction": 0.373885
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3000.594413,
+          "discharge_fraction": 0.375074
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3008.321775,
+          "discharge_fraction": 0.37604
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300040772462364,
+        "fine_extract_db_pct": 81.66638075035648,
+        "wort_pH": 5.959995059966864,
+        "diastatic_power_WK": 332.1308019035342,
+        "total_protein_pct": 10.573494595794259,
+        "wort_colour_EBC": 3.866672418579342
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.40106768954606903,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2988.419262,
+          "discharge_fraction": 0.373552
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3011.973305,
+          "discharge_fraction": 0.376497
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2999.607433,
+          "discharge_fraction": 0.374951
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300099660559753,
+        "fine_extract_db_pct": 81.66658208212705,
+        "wort_pH": 5.9599747618024885,
+        "diastatic_power_WK": 332.1208712634269,
+        "total_protein_pct": 10.573824039164995,
+        "wort_colour_EBC": 3.8667684809435805
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4011104638963675,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2996.707766,
+          "discharge_fraction": 0.374588
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3006.003486,
+          "discharge_fraction": 0.37575
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2997.288748,
+          "discharge_fraction": 0.374661
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300039171246755,
+        "fine_extract_db_pct": 81.66670917716492,
+        "wort_pH": 5.959988456865205,
+        "diastatic_power_WK": 332.1276613636781,
+        "total_protein_pct": 10.573538108145218,
+        "wort_colour_EBC": 3.8667175067341346
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4011207920880692,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3001.536295,
+          "discharge_fraction": 0.375192
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3006.14518,
+          "discharge_fraction": 0.375768
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2992.318525,
+          "discharge_fraction": 0.37404
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.30001902402718,
+        "fine_extract_db_pct": 81.66687588315403,
+        "wort_pH": 5.959990353125038,
+        "diastatic_power_WK": 332.1286525521497,
+        "total_protein_pct": 10.573462417433083,
+        "wort_colour_EBC": 3.8667182964816367
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4011314507797231,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3011.154525,
+          "discharge_fraction": 0.376394
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3008.885808,
+          "discharge_fraction": 0.376111
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2979.959667,
+          "discharge_fraction": 0.372495
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299989141780436,
+        "fine_extract_db_pct": 81.66727089437522,
+        "wort_pH": 5.959989999494414,
+        "diastatic_power_WK": 332.1286134779549,
+        "total_protein_pct": 10.57337337183431,
+        "wort_colour_EBC": 3.866740575516957
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4011927731553403,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3007.087789,
+          "discharge_fraction": 0.375886
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2991.420045,
+          "discharge_fraction": 0.373928
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3001.492166,
+          "discharge_fraction": 0.375187
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299933784700095,
+        "fine_extract_db_pct": 81.66668638377838,
+        "wort_pH": 5.960017550214723,
+        "diastatic_power_WK": 332.14198586865086,
+        "total_protein_pct": 10.573001571505657,
+        "wort_colour_EBC": 3.866593808768449
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4010975951481557,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3002.402217,
+          "discharge_fraction": 0.3753
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3012.380659,
+          "discharge_fraction": 0.376548
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2985.217123,
+          "discharge_fraction": 0.373152
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300041303734509,
+        "fine_extract_db_pct": 81.66706477038994,
+        "wort_pH": 5.959980258192278,
+        "diastatic_power_WK": 332.1237440888029,
+        "total_protein_pct": 10.573604771375793,
+        "wort_colour_EBC": 3.866770742895144
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.40113479937459556,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3001.638449,
+          "discharge_fraction": 0.375205
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3002.730748,
+          "discharge_fraction": 0.375341
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2995.630803,
+          "discharge_fraction": 0.374454
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300004348856796,
+        "fine_extract_db_pct": 81.66679191650888,
+        "wort_pH": 5.959996135670823,
+        "diastatic_power_WK": 332.13147249137916,
+        "total_protein_pct": 10.57337500824148,
+        "wort_colour_EBC": 3.8666895296233195
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.401141296148084,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3004.153624,
+          "discharge_fraction": 0.375519
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3002.528293,
+          "discharge_fraction": 0.375316
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2993.318083,
+          "discharge_fraction": 0.374165
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299992702318157,
+        "fine_extract_db_pct": 81.66687168052827,
+        "wort_pH": 5.959997587645182,
+        "diastatic_power_WK": 332.1322150674908,
+        "total_protein_pct": 10.573328644377687,
+        "wort_colour_EBC": 3.866687614153359
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.401131146679171,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2990.35025,
+          "discharge_fraction": 0.373794
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2997.319514,
+          "discharge_fraction": 0.374665
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3012.330236,
+          "discharge_fraction": 0.376541
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300030268383032,
+        "fine_extract_db_pct": 81.66627213065598,
+        "wort_pH": 5.960000238639122,
+        "diastatic_power_WK": 332.13331592165434,
+        "total_protein_pct": 10.573424406354412,
+        "wort_colour_EBC": 3.866644896817175
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4011277669785873,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3005.664385,
+          "discharge_fraction": 0.375708
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3006.726457,
+          "discharge_fraction": 0.375841
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2987.609157,
+          "discharge_fraction": 0.373451
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.3000037179530874,
+        "fine_extract_db_pct": 81.66703018686509,
+        "wort_pH": 5.959991201122769,
+        "diastatic_power_WK": 332.1291230907227,
+        "total_protein_pct": 10.573409260155833,
+        "wort_colour_EBC": 3.866722847212824
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.40115639477211906,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2993.163891,
+          "discharge_fraction": 0.374145
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2992.638037,
+          "discharge_fraction": 0.37408
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3014.198072,
+          "discharge_fraction": 0.376775
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299998664740946,
+        "fine_extract_db_pct": 81.66624730246636,
+        "wort_pH": 5.960009348803178,
+        "diastatic_power_WK": 332.1377953823039,
+        "total_protein_pct": 10.573260680648934,
+        "wort_colour_EBC": 3.8666052314848502
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4010904180680443,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2997.227197,
+          "discharge_fraction": 0.374653
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3011.264514,
+          "discharge_fraction": 0.376408
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2991.50829,
+          "discharge_fraction": 0.373939
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300058876134784,
+        "fine_extract_db_pct": 81.6668614139678,
+        "wort_pH": 5.959979846178393,
+        "diastatic_power_WK": 332.12347154844923,
+        "total_protein_pct": 10.573661681505138,
+        "wort_colour_EBC": 3.8667617747208674
+      },
+      "total_discharged_mass_kg": 9000.000001
+    },
+    {
+      "objective_score": 0.40111135549574234,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2995.220484,
+          "discharge_fraction": 0.374403
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3004.950213,
+          "discharge_fraction": 0.375619
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2999.829303,
+          "discharge_fraction": 0.374979
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300041167354286,
+        "fine_extract_db_pct": 81.66663197978315,
+        "wort_pH": 5.959989569294199,
+        "diastatic_power_WK": 332.12818297169923,
+        "total_protein_pct": 10.573536071729023,
+        "wort_colour_EBC": 3.866708759802489
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4012077683519384,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3013.903804,
+          "discharge_fraction": 0.376738
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2991.522071,
+          "discharge_fraction": 0.37394
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2994.574125,
+          "discharge_fraction": 0.374322
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299904936047464,
+        "fine_extract_db_pct": 81.66691919936096,
+        "wort_pH": 5.960020391657953,
+        "diastatic_power_WK": 332.143465300752,
+        "total_protein_pct": 10.572892265053898,
+        "wort_colour_EBC": 3.8665940982486684
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.40115207270437153,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2997.822932,
+          "discharge_fraction": 0.374728
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2996.315731,
+          "discharge_fraction": 0.374539
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3005.861338,
+          "discharge_fraction": 0.375733
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.29999398876026,
+        "fine_extract_db_pct": 81.66649881334988,
+        "wort_pH": 5.960005228479004,
+        "diastatic_power_WK": 332.1358516236974,
+        "total_protein_pct": 10.573276556685435,
+        "wort_colour_EBC": 3.8666358176331346
+      },
+      "total_discharged_mass_kg": 9000.000001
+    },
+    {
+      "objective_score": 0.40112290091801134,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3006.298343,
+          "discharge_fraction": 0.375787
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3008.287293,
+          "discharge_fraction": 0.376036
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2985.414365,
+          "discharge_fraction": 0.373177
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300007503057463,
+        "fine_extract_db_pct": 81.66709155881846,
+        "wort_pH": 5.959988858624008,
+        "diastatic_power_WK": 332.127990097528,
+        "total_protein_pct": 10.573438046133498,
+        "wort_colour_EBC": 3.8667359404683057
+      },
+      "total_discharged_mass_kg": 9000.000001
+    },
+    {
+      "objective_score": 0.40110053789725025,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2995.394989,
+          "discharge_fraction": 0.374424
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3007.729839,
+          "discharge_fraction": 0.375966
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2996.875171,
+          "discharge_fraction": 0.374609
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300052007488699,
+        "fine_extract_db_pct": 81.66670903790944,
+        "wort_pH": 5.959984975726439,
+        "diastatic_power_WK": 332.12594639715076,
+        "total_protein_pct": 10.573603000971472,
+        "wort_colour_EBC": 3.8667321568312873
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.401171324780389,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3012.348354,
+          "discharge_fraction": 0.376544
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2999.675043,
+          "discharge_fraction": 0.374959
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2987.976603,
+          "discharge_fraction": 0.373497
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299945610248428,
+        "fine_extract_db_pct": 81.66707539930472,
+        "wort_pH": 5.96000600437604,
+        "diastatic_power_WK": 332.1364311081689,
+        "total_protein_pct": 10.573122506004223,
+        "wort_colour_EBC": 3.8666628973274517
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.40114186797591017,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3011.080777,
+          "discharge_fraction": 0.376385
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3006.263048,
+          "discharge_fraction": 0.375783
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2982.656175,
+          "discharge_fraction": 0.372832
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299978522956302,
+        "fine_extract_db_pct": 81.66720125533308,
+        "wort_pH": 5.959994374011865,
+        "diastatic_power_WK": 332.13074467951236,
+        "total_protein_pct": 10.573308727645637,
+        "wort_colour_EBC": 3.8667184912833545
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4011518857233825,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2997.766314,
+          "discharge_fraction": 0.374721
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2996.330373,
+          "discharge_fraction": 0.374541
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3005.903313,
+          "discharge_fraction": 0.375738
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.299994292978046,
+        "fine_extract_db_pct": 81.66649727602487,
+        "wort_pH": 5.960005178848285,
+        "diastatic_power_WK": 332.13582664811054,
+        "total_protein_pct": 10.573277853578594,
+        "wort_colour_EBC": 3.866635945692744
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.40111644734309027,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2999.367522,
+          "discharge_fraction": 0.374921
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3006.008538,
+          "discharge_fraction": 0.375751
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2994.623939,
+          "discharge_fraction": 0.374328
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300027768946035,
+        "fine_extract_db_pct": 81.66679913689465,
+        "wort_pH": 5.959989624066903,
+        "diastatic_power_WK": 332.1282671397919,
+        "total_protein_pct": 10.573494581610534,
+        "wort_colour_EBC": 3.8667173269232773
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.401097426616826,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2989.103928,
+          "discharge_fraction": 0.373638
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3004.981062,
+          "discharge_fraction": 0.375623
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3005.915011,
+          "discharge_fraction": 0.375739
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.300067565926636,
+        "fine_extract_db_pct": 81.66642618953335,
+        "wort_pH": 5.959986813758485,
+        "diastatic_power_WK": 332.126755105862,
+        "total_protein_pct": 10.573637234612798,
+        "wort_colour_EBC": 3.866709530992347
+      },
+      "total_discharged_mass_kg": 9000.000001
+    },
+    {
+      "objective_score": 0.4011680449084009,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2994.89717,
+          "discharge_fraction": 0.374362
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2990.722128,
+          "discharge_fraction": 0.37384
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3014.380702,
+          "discharge_fraction": 0.376798
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.29998323213698,
+        "fine_extract_db_pct": 81.66625679069931,
+        "wort_pH": 5.960013334333547,
+        "diastatic_power_WK": 332.1397620263979,
+        "total_protein_pct": 10.573184126774047,
+        "wort_colour_EBC": 3.866588949685023
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.4033081700064462,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3335.951355,
+          "discharge_fraction": 0.416994
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2660.24829,
+          "discharge_fraction": 0.332531
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3003.800355,
+          "discharge_fraction": 0.375475
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.297140534839954,
+        "fine_extract_db_pct": 81.66931468575187,
+        "wort_pH": 5.96071939727733,
+        "diastatic_power_WK": 332.4886370512208,
+        "total_protein_pct": 10.559288726808777,
+        "wort_colour_EBC": 3.8637769949244984
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.39870962336448357,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2834.074696,
+          "discharge_fraction": 0.354259
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3522.198909,
+          "discharge_fraction": 0.440275
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2643.726395,
+          "discharge_fraction": 0.330466
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.302889932855347,
+        "fine_extract_db_pct": 81.67443213241457,
+        "wort_pH": 5.959049186816095,
+        "diastatic_power_WK": 331.6675893399649,
+        "total_protein_pct": 10.58916842410504,
+        "wort_colour_EBC": 3.8710787993224764
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.40376993370466996,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 3602.00497,
+          "discharge_fraction": 0.450251
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 2698.997515,
+          "discharge_fraction": 0.337375
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2698.997515,
+          "discharge_fraction": 0.337375
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.296159427672383,
+        "fine_extract_db_pct": 81.67929242071965,
+        "wort_pH": 5.96077188918779,
+        "diastatic_power_WK": 332.51790965959924,
+        "total_protein_pct": 10.555895057484852,
+        "wort_colour_EBC": 3.8640811202998164
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.39839310715048015,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2805.658972,
+          "discharge_fraction": 0.350707
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3588.235294,
+          "discharge_fraction": 0.448529
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2606.105733,
+          "discharge_fraction": 0.325763
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.303287313174656,
+        "fine_extract_db_pct": 81.67516309539195,
+        "wort_pH": 5.958925662951336,
+        "diastatic_power_WK": 331.6069876497137,
+        "total_protein_pct": 10.591292898759143,
+        "wort_colour_EBC": 3.871637371541316
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.39660957309741124,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2543.810062,
+          "discharge_fraction": 0.317976
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3912.379876,
+          "discharge_fraction": 0.489047
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2543.810062,
+          "discharge_fraction": 0.317976
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.305763442613627,
+        "fine_extract_db_pct": 81.67461822985693,
+        "wort_pH": 5.95826524636508,
+        "diastatic_power_WK": 331.2814591826962,
+        "total_protein_pct": 10.603729417337862,
+        "wort_colour_EBC": 3.874389395823708
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.3970645977544806,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2591.312932,
+          "discharge_fraction": 0.323914
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3817.374136,
+          "discharge_fraction": 0.477172
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2591.312932,
+          "discharge_fraction": 0.323914
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.305163297712519,
+        "fine_extract_db_pct": 81.6737902368631,
+        "wort_pH": 5.95844588554525,
+        "diastatic_power_WK": 331.3701644864816,
+        "total_protein_pct": 10.600564285653228,
+        "wort_colour_EBC": 3.873585231223322
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.3979380725343659,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2509.360312,
+          "discharge_fraction": 0.31367
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3541.065881,
+          "discharge_fraction": 0.442633
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2949.573807,
+          "discharge_fraction": 0.368697
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.3043632116808315,
+        "fine_extract_db_pct": 81.66394829200306,
+        "wort_pH": 5.958873950572281,
+        "diastatic_power_WK": 331.5776758555036,
+        "total_protein_pct": 10.594971544957822,
+        "wort_colour_EBC": 3.871264855064241
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.396696155957589,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2552.881109,
+          "discharge_fraction": 0.31911
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3894.237783,
+          "discharge_fraction": 0.48678
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2552.881109,
+          "discharge_fraction": 0.31911
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.305648840223614,
+        "fine_extract_db_pct": 81.67446011808121,
+        "wort_pH": 5.958299740837566,
+        "diastatic_power_WK": 331.2983981582701,
+        "total_protein_pct": 10.603125010543605,
+        "wort_colour_EBC": 3.87423583426716
+      },
+      "total_discharged_mass_kg": 9000.000001
+    },
+    {
+      "objective_score": 0.3969058899195782,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2574.791564,
+          "discharge_fraction": 0.321849
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3850.416871,
+          "discharge_fraction": 0.481302
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2574.791564,
+          "discharge_fraction": 0.321849
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.305372026460758,
+        "fine_extract_db_pct": 81.67407821055218,
+        "wort_pH": 5.958383059734532,
+        "diastatic_power_WK": 331.33931302546426,
+        "total_protein_pct": 10.601665109759743,
+        "wort_colour_EBC": 3.873864917462606
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.39662525884887095,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2545.454545,
+          "discharge_fraction": 0.318182
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3909.090909,
+          "discharge_fraction": 0.488636
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2545.454545,
+          "discharge_fraction": 0.318182
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.305742666431954,
+        "fine_extract_db_pct": 81.67458956589125,
+        "wort_pH": 5.958271499842228,
+        "diastatic_power_WK": 331.28453003692397,
+        "total_protein_pct": 10.603619844881646,
+        "wort_colour_EBC": 3.874361556763837
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.3962466025988976,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2348.818134,
+          "discharge_fraction": 0.293602
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3901.051376,
+          "discharge_fraction": 0.487631
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2750.13049,
+          "discharge_fraction": 0.343766
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.306553677863368,
+        "fine_extract_db_pct": 81.6677425555244,
+        "wort_pH": 5.9581980898187075,
+        "diastatic_power_WK": 331.2460235428422,
+        "total_protein_pct": 10.606645286777148,
+        "wort_colour_EBC": 3.8743102826330458
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.3988234244053579,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2771.179731,
+          "discharge_fraction": 0.346397
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3457.640538,
+          "discharge_fraction": 0.432205
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2771.179731,
+          "discharge_fraction": 0.346397
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.302890884649929,
+        "fine_extract_db_pct": 81.67065509051517,
+        "wort_pH": 5.9591298650839795,
+        "diastatic_power_WK": 331.70604185654736,
+        "total_protein_pct": 10.588579702310595,
+        "wort_colour_EBC": 3.870540309673515
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.3971263085183321,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2489.419384,
+          "discharge_fraction": 0.311177
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3743.956623,
+          "discharge_fraction": 0.467995
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2766.623993,
+          "discharge_fraction": 0.345828
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.305294806133881,
+        "fine_extract_db_pct": 81.66846924716762,
+        "wort_pH": 5.958524211610068,
+        "diastatic_power_WK": 331.4069300408859,
+        "total_protein_pct": 10.600393187003398,
+        "wort_colour_EBC": 3.8729753851769524
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.39923580275262394,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2669.491525,
+          "discharge_fraction": 0.333686
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3294.915254,
+          "discharge_fraction": 0.411864
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3035.59322,
+          "discharge_fraction": 0.379449
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.302649143555899,
+        "fine_extract_db_pct": 81.66305456547866,
+        "wort_pH": 5.959358348917429,
+        "diastatic_power_WK": 331.8160000285652,
+        "total_protein_pct": 10.586162814843618,
+        "wort_colour_EBC": 3.8691782448465486
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.39776265411187256,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2472.139382,
+          "discharge_fraction": 0.309017
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3566.237639,
+          "discharge_fraction": 0.44578
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2961.622979,
+          "discharge_fraction": 0.370203
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.304628024876425,
+        "fine_extract_db_pct": 81.66333564656419,
+        "wort_pH": 5.958815200821453,
+        "diastatic_power_WK": 331.54852428376114,
+        "total_protein_pct": 10.596214470263714,
+        "wort_colour_EBC": 3.8714799779393676
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.39960532605108584,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2726.092601,
+          "discharge_fraction": 0.340762
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3232.366941,
+          "discharge_fraction": 0.404046
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 3041.540459,
+          "discharge_fraction": 0.380193
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.3021452536629035,
+        "fine_extract_db_pct": 81.6633648342389,
+        "wort_pH": 5.959488470414951,
+        "diastatic_power_WK": 331.88020813192037,
+        "total_protein_pct": 10.583663328189932,
+        "wort_colour_EBC": 3.8686466947917304
+      },
+      "total_discharged_mass_kg": 9000.000001
+    },
+    {
+      "objective_score": 0.3975554957434508,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2488.741408,
+          "discharge_fraction": 0.311093
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3630.007111,
+          "discharge_fraction": 0.453751
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2881.251481,
+          "discharge_fraction": 0.360156
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.3048226069539135,
+        "fine_extract_db_pct": 81.66552899725899,
+        "wort_pH": 5.958715385314102,
+        "diastatic_power_WK": 331.50010236958815,
+        "total_protein_pct": 10.597543169021924,
+        "wort_colour_EBC": 3.8720156932700442
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.3988234244053579,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2771.179731,
+          "discharge_fraction": 0.346397
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3457.640538,
+          "discharge_fraction": 0.432205
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2771.179731,
+          "discharge_fraction": 0.346397
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.302890884649929,
+        "fine_extract_db_pct": 81.67065509051517,
+        "wort_pH": 5.9591298650839795,
+        "diastatic_power_WK": 331.70604185654736,
+        "total_protein_pct": 10.588579702310595,
+        "wort_colour_EBC": 3.870540309673515
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.3983380608401325,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2701.312066,
+          "discharge_fraction": 0.337664
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3544.12143,
+          "discharge_fraction": 0.443015
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2754.566504,
+          "discharge_fraction": 0.344321
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.303551539688278,
+        "fine_extract_db_pct": 81.67050948246654,
+        "wort_pH": 5.958953664603186,
+        "diastatic_power_WK": 331.6191901222022,
+        "total_protein_pct": 10.591897847954032,
+        "wort_colour_EBC": 3.87127454285325
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.39850344519044495,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2710.143681,
+          "discharge_fraction": 0.338768
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3506.151596,
+          "discharge_fraction": 0.438269
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2783.704723,
+          "discharge_fraction": 0.347963
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.303355294124278,
+        "fine_extract_db_pct": 81.66983565144234,
+        "wort_pH": 5.959021370492502,
+        "diastatic_power_WK": 331.65231366022107,
+        "total_protein_pct": 10.590799518369428,
+        "wort_colour_EBC": 3.8709540006337955
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.39794521855215426,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2571.848465,
+          "discharge_fraction": 0.321481
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3574.134553,
+          "discharge_fraction": 0.446767
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2854.016982,
+          "discharge_fraction": 0.356752
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.304232711207947,
+        "fine_extract_db_pct": 81.66690539040817,
+        "wort_pH": 5.958846005734812,
+        "diastatic_power_WK": 331.5649209850256,
+        "total_protein_pct": 10.594776272315753,
+        "wort_colour_EBC": 3.871538154295962
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.3986051762662493,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2749.170885,
+          "discharge_fraction": 0.343646
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3501.65823,
+          "discharge_fraction": 0.437707
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2749.170885,
+          "discharge_fraction": 0.343646
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.30316894146431,
+        "fine_extract_db_pct": 81.6710387130266,
+        "wort_pH": 5.959046172037685,
+        "diastatic_power_WK": 331.66494325828586,
+        "total_protein_pct": 10.590046158880838,
+        "wort_colour_EBC": 3.870912892105872
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.39885768298120505,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2715.517241,
+          "discharge_fraction": 0.33944
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3417.672414,
+          "discharge_fraction": 0.427209
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2866.810345,
+          "discharge_fraction": 0.358351
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.302963302461269,
+        "fine_extract_db_pct": 81.66775188068365,
+        "wort_pH": 5.95917242046015,
+        "diastatic_power_WK": 331.72601277533886,
+        "total_protein_pct": 10.58848971084013,
+        "wort_colour_EBC": 3.8702083286248277
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.398218698491581,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2665.651181,
+          "discharge_fraction": 0.333206
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3555.21706,
+          "discharge_fraction": 0.444402
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2779.131759,
+          "discharge_fraction": 0.347391
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.303750962425688,
+        "fine_extract_db_pct": 81.66958914677224,
+        "wort_pH": 5.95891925705362,
+        "diastatic_power_WK": 331.60192502504833,
+        "total_protein_pct": 10.59276173304555,
+        "wort_colour_EBC": 3.8713709780253938
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.39778244804727825,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2665.425622,
+          "discharge_fraction": 0.333178
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3669.148756,
+          "discharge_fraction": 0.458644
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2665.425622,
+          "discharge_fraction": 0.333178
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.304226967907375,
+        "fine_extract_db_pct": 81.67249842464051,
+        "wort_pH": 5.958727713897131,
+        "diastatic_power_WK": 331.5085600967003,
+        "total_protein_pct": 10.595626133003655,
+        "wort_colour_EBC": 3.8723305954142133
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.3972348618768819,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2543.399273,
+          "discharge_fraction": 0.317925
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3745.337101,
+          "discharge_fraction": 0.468167
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2711.263625,
+          "discharge_fraction": 0.338908
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.305068724222769,
+        "fine_extract_db_pct": 81.67032770246517,
+        "wort_pH": 5.958545752658136,
+        "diastatic_power_WK": 331.41817762874655,
+        "total_protein_pct": 10.599541901456819,
+        "wort_colour_EBC": 3.8729824994639066
+      },
+      "total_discharged_mass_kg": 8999.999999
+    },
+    {
+      "objective_score": 0.39719255922670277,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2604.597321,
+          "discharge_fraction": 0.325575
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3790.805358,
+          "discharge_fraction": 0.473851
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2604.597321,
+          "discharge_fraction": 0.325575
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.304995464520068,
+        "fine_extract_db_pct": 81.67355868493752,
+        "wort_pH": 5.958496402095892,
+        "diastatic_power_WK": 331.3949713194549,
+        "total_protein_pct": 10.599679142491667,
+        "wort_colour_EBC": 3.8733603430140082
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.39813122959024894,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2701.080432,
+          "discharge_fraction": 0.337635
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3597.839136,
+          "discharge_fraction": 0.44973
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2701.080432,
+          "discharge_fraction": 0.337635
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.30377650981039,
+        "fine_extract_db_pct": 81.67187694781443,
+        "wort_pH": 5.958863298455443,
+        "diastatic_power_WK": 331.57514072124906,
+        "total_protein_pct": 10.593250441411957,
+        "wort_colour_EBC": 3.8717270037567943
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.39742330762008105,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2594.300774,
+          "discharge_fraction": 0.324288
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3723.933454,
+          "discharge_fraction": 0.465492
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2681.765772,
+          "discharge_fraction": 0.335221
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.304760865540852,
+        "fine_extract_db_pct": 81.67149886602628,
+        "wort_pH": 5.9586042179383485,
+        "diastatic_power_WK": 331.4473801332691,
+        "total_protein_pct": 10.598169056110724,
+        "wort_colour_EBC": 3.8727979700504416
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.39792637875584475,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2680.166766,
+          "discharge_fraction": 0.335021
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3639.666468,
+          "discharge_fraction": 0.454958
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2680.166766,
+          "discharge_fraction": 0.335021
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.304040730267246,
+        "fine_extract_db_pct": 81.6722414809242,
+        "wort_pH": 5.958783770050516,
+        "diastatic_power_WK": 331.536087226254,
+        "total_protein_pct": 10.594643925782446,
+        "wort_colour_EBC": 3.872081046151737
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.39749619994705343,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2614.975926,
+          "discharge_fraction": 0.326872
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3716.254358,
+          "discharge_fraction": 0.464532
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2668.769716,
+          "discharge_fraction": 0.333596
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.304640050103385,
+        "fine_extract_db_pct": 81.67200054547811,
+        "wort_pH": 5.9586262604259765,
+        "diastatic_power_WK": 331.4584105859351,
+        "total_protein_pct": 10.597636910526534,
+        "wort_colour_EBC": 3.872731563757885
+      },
+      "total_discharged_mass_kg": 9000
+    },
+    {
+      "objective_score": 0.39758421107139874,
+      "recommended_discharge": [
+        {
+          "silo_id": "S1",
+          "discharge_mass_kg": 2645.058359,
+          "discharge_fraction": 0.330632
+        },
+        {
+          "silo_id": "S2",
+          "discharge_mass_kg": 3709.883282,
+          "discharge_fraction": 0.463735
+        },
+        {
+          "silo_id": "S3",
+          "discharge_mass_kg": 2645.058359,
+          "discharge_fraction": 0.330632
+        }
+      ],
+      "blended_params": {
+        "moisture_pct": 4.304484285181867,
+        "fine_extract_db_pct": 81.67285343373928,
+        "wort_pH": 5.958650263299081,
+        "diastatic_power_WK": 331.47052693677347,
+        "total_protein_pct": 10.596983210364469,
+        "wort_colour_EBC": 3.8726753878848856
+      },
+      "total_discharged_mass_kg": 9000
+    }
+  ],
+  "elapsed_ms": 11814.93,
+  "timing_breakdown_ms": {
+    "validation_ms": 124.31,
+    "search_ms": 11607.76,
+    "postprocess_ms": 123.99,
+    "db_ms": 41.12
+  }
+}

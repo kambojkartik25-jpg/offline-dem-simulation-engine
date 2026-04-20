@@ -1,0 +1,126 @@
+snapshot_45: no grains discharged yet
+snapshot_46: no grains discharged yet
+snapshot_47: no grains discharged yet
+snapshot_48: no grains discharged yet
+snapshot_49: no grains discharged yet
+snapshot_50: no grains discharged yet
+snapshot_51: no grains discharged yet
+snapshot_52: no grains discharged yet
+snapshot_53: no grains discharged yet
+snapshot_54: no grains discharged yet
+snapshot_55: no grains discharged yet
+snapshot_56: no grains discharged yet
+snapshot_57: no grains discharged yet
+snapshot_58: no grains discharged yet
+snapshot_59: no grains discharged yet
+snapshot_60: no grains discharged yet
+snapshot_61: no grains discharged yet
+snapshot_62: no grains discharged yet
+snapshot_63: 1 grain lot_72 discharged
+snapshot_64: 1 grain lot_72 discharged
+snapshot_65: 1 grain lot_72 discharged
+snapshot_66: 1 grain lot_72 discharged
+snapshot_67: 1 grain lot_72 discharged
+snapshot_68: 1 grain lot_72 discharged
+snapshot_69: 1 grain lot_72 discharged
+snapshot_70: 1 grain lot_72 discharged
+snapshot_71: 1 grain lot_72 discharged
+snapshot_72: 1 grain lot_72 discharged
+snapshot_73: 1 grain lot_72 discharged
+snapshot_74: 1 grain lot_72 discharged
+snapshot_75: 1 grain lot_72 discharged
+snapshot_76: 4 grains lot_72 discharged
+snapshot_77: 5 grains lot_72 discharged
+snapshot_78: 7 grains lot_72 discharged
+snapshot_79: 9 grains lot_72 discharged
+snapshot_80: 9 grains lot_72 discharged
+snapshot_81: 9 grains lot_72 discharged
+snapshot_82: 10 grains lot_72 discharged
+snapshot_83: 11 grains lot_72 discharged
+snapshot_84: 13 grains lot_72 discharged
+snapshot_85: 18 grains lot_72 discharged
+snapshot_86: 21 grains lot_72 discharged
+snapshot_87: 29 grains lot_72 discharged
+snapshot_88: 36 grains lot_72 discharged
+snapshot_89: 45 grains lot_72 discharged
+snapshot_90: 53 grains lot_72 discharged
+snapshot_91: 60 grains lot_72 discharged
+snapshot_92: 68 grains lot_72 discharged
+snapshot_93: 72 grains lot_72 discharged
+snapshot_94: 76 grains lot_72 discharged
+snapshot_95: 84 grains lot_72 discharged
+snapshot_96: 92 grains lot_72 discharged
+snapshot_97: 97 grains lot_72 discharged, 1 grain lot_73 discharged
+snapshot_98: 102 grains lot_72 discharged, 1 grain lot_73 discharged
+snapshot_99: 110 grains lot_72 discharged, 2 grains lot_73 discharged
+snapshot_100: 116 grains lot_72 discharged, 2 grains lot_73 discharged
+snapshot_101: 121 grains lot_72 discharged, 3 grains lot_73 discharged
+snapshot_102: 126 grains lot_72 discharged, 3 grains lot_73 discharged
+snapshot_103: 132 grains lot_72 discharged, 3 grains lot_73 discharged
+snapshot_104: 138 grains lot_72 discharged, 3 grains lot_73 discharged
+snapshot_105: 143 grains lot_72 discharged, 3 grains lot_73 discharged
+snapshot_106: 149 grains lot_72 discharged, 4 grains lot_73 discharged
+snapshot_107: 153 grains lot_72 discharged, 6 grains lot_73 discharged
+snapshot_108: 160 grains lot_72 discharged, 7 grains lot_73 discharged
+snapshot_109: 163 grains lot_72 discharged, 9 grains lot_73 discharged
+snapshot_110: 167 grains lot_72 discharged, 12 grains lot_73 discharged
+snapshot_111: 168 grains lot_72 discharged, 13 grains lot_73 discharged, 1 grain lot_74 discharged
+snapshot_112: 174 grains lot_72 discharged, 15 grains lot_73 discharged, 1 grain lot_74 discharged
+snapshot_113: 177 grains lot_72 discharged, 18 grains lot_73 discharged, 1 grain lot_74 discharged
+snapshot_114: 180 grains lot_72 discharged, 20 grains lot_73 discharged, 1 grain lot_74 discharged
+snapshot_115: 183 grains lot_72 discharged, 22 grains lot_73 discharged, 3 grains lot_74 discharged
+snapshot_116: 185 grains lot_72 discharged, 25 grains lot_73 discharged, 3 grains lot_74 discharged
+snapshot_117: 189 grains lot_72 discharged, 27 grains lot_73 discharged, 5 grains lot_74 discharged
+snapshot_118: 191 grains lot_72 discharged, 28 grains lot_73 discharged, 7 grains lot_74 discharged
+snapshot_119: 191 grains lot_72 discharged, 31 grains lot_73 discharged, 8 grains lot_74 discharged
+snapshot_120: 193 grains lot_72 discharged, 32 grains lot_73 discharged, 10 grains lot_74 discharged
+snapshot_121: 195 grains lot_72 discharged, 35 grains lot_73 discharged, 13 grains lot_74 discharged
+snapshot_122: 197 grains lot_72 discharged, 35 grains lot_73 discharged, 13 grains lot_74 discharged
+snapshot_123: 198 grains lot_72 discharged, 37 grains lot_73 discharged, 17 grains lot_74 discharged
+snapshot_124: 201 grains lot_72 discharged, 37 grains lot_73 discharged, 21 grains lot_74 discharged
+snapshot_125: 202 grains lot_72 discharged, 40 grains lot_73 discharged, 21 grains lot_74 discharged
+snapshot_126: 205 grains lot_72 discharged, 41 grains lot_73 discharged, 22 grains lot_74 discharged
+snapshot_127: 206 grains lot_72 discharged, 44 grains lot_73 discharged, 25 grains lot_74 discharged
+snapshot_128: 210 grains lot_72 discharged, 46 grains lot_73 discharged, 25 grains lot_74 discharged
+snapshot_129: 211 grains lot_72 discharged, 46 grains lot_73 discharged, 28 grains lot_74 discharged
+snapshot_130: 212 grains lot_72 discharged, 47 grains lot_73 discharged, 31 grains lot_74 discharged
+snapshot_131: 215 grains lot_72 discharged, 47 grains lot_73 discharged, 35 grains lot_74 discharged
+snapshot_132: 216 grains lot_72 discharged, 47 grains lot_73 discharged, 40 grains lot_74 discharged
+snapshot_133: 218 grains lot_72 discharged, 48 grains lot_73 discharged, 40 grains lot_74 discharged
+snapshot_134: 219 grains lot_72 discharged, 49 grains lot_73 discharged, 44 grains lot_74 discharged
+snapshot_135: 221 grains lot_72 discharged, 51 grains lot_73 discharged, 46 grains lot_74 discharged
+snapshot_136: 224 grains lot_72 discharged, 52 grains lot_73 discharged, 51 grains lot_74 discharged
+snapshot_137: 226 grains lot_72 discharged, 54 grains lot_73 discharged, 53 grains lot_74 discharged
+snapshot_138: 228 grains lot_72 discharged, 54 grains lot_73 discharged, 55 grains lot_74 discharged
+snapshot_139: 228 grains lot_72 discharged, 55 grains lot_73 discharged, 57 grains lot_74 discharged
+snapshot_140: 229 grains lot_72 discharged, 56 grains lot_73 discharged, 57 grains lot_74 discharged
+snapshot_141: 229 grains lot_72 discharged, 57 grains lot_73 discharged, 57 grains lot_74 discharged
+snapshot_142: 230 grains lot_72 discharged, 57 grains lot_73 discharged, 60 grains lot_74 discharged
+snapshot_143: 231 grains lot_72 discharged, 58 grains lot_73 discharged, 61 grains lot_74 discharged
+snapshot_144: 231 grains lot_72 discharged, 59 grains lot_73 discharged, 65 grains lot_74 discharged
+snapshot_145: 231 grains lot_72 discharged, 61 grains lot_73 discharged, 70 grains lot_74 discharged
+snapshot_146: 233 grains lot_72 discharged, 63 grains lot_73 discharged, 72 grains lot_74 discharged
+snapshot_147: 233 grains lot_72 discharged, 63 grains lot_73 discharged, 75 grains lot_74 discharged
+snapshot_148: 234 grains lot_72 discharged, 67 grains lot_73 discharged, 76 grains lot_74 discharged
+snapshot_149: 235 grains lot_72 discharged, 68 grains lot_73 discharged, 78 grains lot_74 discharged
+snapshot_150: 237 grains lot_72 discharged, 69 grains lot_73 discharged, 78 grains lot_74 discharged
+snapshot_151: 238 grains lot_72 discharged, 69 grains lot_73 discharged, 82 grains lot_74 discharged
+snapshot_152: 239 grains lot_72 discharged, 69 grains lot_73 discharged, 85 grains lot_74 discharged
+snapshot_153: 240 grains lot_72 discharged, 71 grains lot_73 discharged, 88 grains lot_74 discharged
+snapshot_154: 240 grains lot_72 discharged, 75 grains lot_73 discharged, 90 grains lot_74 discharged
+snapshot_155: 241 grains lot_72 discharged, 78 grains lot_73 discharged, 91 grains lot_74 discharged
+snapshot_156: 242 grains lot_72 discharged, 80 grains lot_73 discharged, 93 grains lot_74 discharged
+snapshot_157: 242 grains lot_72 discharged, 82 grains lot_73 discharged, 93 grains lot_74 discharged
+snapshot_158: 242 grains lot_72 discharged, 83 grains lot_73 discharged, 96 grains lot_74 discharged
+snapshot_159: 242 grains lot_72 discharged, 86 grains lot_73 discharged, 100 grains lot_74 discharged
+snapshot_160: 244 grains lot_72 discharged, 86 grains lot_73 discharged, 103 grains lot_74 discharged
+snapshot_161: 244 grains lot_72 discharged, 89 grains lot_73 discharged, 104 grains lot_74 discharged
+snapshot_162: 245 grains lot_72 discharged, 91 grains lot_73 discharged, 107 grains lot_74 discharged
+snapshot_163: 245 grains lot_72 discharged, 94 grains lot_73 discharged, 109 grains lot_74 discharged
+snapshot_164: 245 grains lot_72 discharged, 96 grains lot_73 discharged, 111 grains lot_74 discharged
+snapshot_165: 245 grains lot_72 discharged, 98 grains lot_73 discharged, 114 grains lot_74 discharged
+snapshot_166: 246 grains lot_72 discharged, 101 grains lot_73 discharged, 117 grains lot_74 discharged
+snapshot_167: 247 grains lot_72 discharged, 101 grains lot_73 discharged, 117 grains lot_74 discharged
+snapshot_168: 247 grains lot_72 discharged, 102 grains lot_73 discharged, 118 grains lot_74 discharged
+snapshot_169: 248 grains lot_72 discharged, 103 grains lot_73 discharged, 120 grains lot_74 discharged
+snapshot_170: 250 grains lot_72 discharged, 105 grains lot_73 discharged, 122 grains lot_74 discharged

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from dem_sim.db import fetchall
 from dem_sim.web import create_app
 
 
@@ -52,3 +53,97 @@ def test_optimize_endpoint() -> None:
     assert data["objective_method"] == "normalized_weighted_l2_hybrid_search"
     assert len(data["top_candidates"]) >= 1
     assert data["best_run"]["total_discharged_mass_kg"] > 0
+
+
+def test_production_plan_apply_tracks_reason_and_scenarios() -> None:
+    client = TestClient(create_app())
+    load_res = client.post(
+        "/api/production-plans/load",
+        json={
+            "plan_run_id": "test_plan_apply_tracks_reason",
+            "seed": 21,
+            "silos_count": 3,
+            "lots_count": 30,
+            "lot_size_kg": 25000.0,
+            "schedule_id": "test_schedule_apply_tracks_reason",
+            "name": "Tracked Schedule",
+            "brews_count": 2,
+            "target_params": {
+                "moisture_pct": 4.5,
+                "fine_extract_db_pct": 81.0,
+            },
+            "optimize_iterations": 5,
+            "optimize_seed": 7,
+            "config": {"steps": 200},
+            "include_all_candidates": False,
+        },
+    )
+    assert load_res.status_code == 200
+    snapshot = load_res.json()
+    current_brew = snapshot["current_brew"]
+    assert current_brew["brew_id"]
+    assert len(snapshot["scenarios"]) >= 1
+
+    missing_reason = client.post(
+        f"/api/production-plans/{snapshot['plan_run']['plan_run_id']}/brews/{current_brew['brew_id']}/apply",
+        json={
+            "candidate_index": 0,
+            "config": {"steps": 200},
+            "expected_last_event_id": snapshot["plan_run"]["last_event_id"],
+        },
+    )
+    assert missing_reason.status_code == 422
+
+    apply_res = client.post(
+        f"/api/production-plans/{snapshot['plan_run']['plan_run_id']}/brews/{current_brew['brew_id']}/apply",
+        json={
+            "candidate_index": 0,
+            "reason": "operator selected best fit",
+            "config": {"steps": 200},
+            "expected_last_event_id": snapshot["plan_run"]["last_event_id"],
+        },
+    )
+    assert apply_res.status_code == 200
+
+    tracked_schedule = fetchall(
+        "SELECT schedule_id, name FROM tracked_schedules WHERE schedule_id = %s",
+        ("test_schedule_apply_tracks_reason",),
+    )
+    assert tracked_schedule
+
+    tracked_brew = fetchall(
+        """
+        SELECT status, selected_candidate_index
+        FROM tracked_brews
+        WHERE schedule_id = %s AND brew_id = %s
+        """,
+        ("test_schedule_apply_tracks_reason", current_brew["brew_id"]),
+    )
+    assert tracked_brew
+    assert tracked_brew[0]["status"] == "applied"
+    assert tracked_brew[0]["selected_candidate_index"] == 0
+
+    tracked_scenarios = fetchall(
+        """
+        SELECT scenario_index
+        FROM tracked_scenarios
+        WHERE schedule_id = %s AND brew_id = %s
+        ORDER BY scenario_index
+        """,
+        ("test_schedule_apply_tracks_reason", current_brew["brew_id"]),
+    )
+    assert tracked_scenarios
+    assert tracked_scenarios[0]["scenario_index"] == 0
+
+    applied_rows = fetchall(
+        """
+        SELECT reason, scenario_index, applied_event_id, plan_run_id
+        FROM tracked_applied_scenarios
+        WHERE schedule_id = %s AND brew_id = %s
+        """,
+        ("test_schedule_apply_tracks_reason", current_brew["brew_id"]),
+    )
+    assert applied_rows
+    assert applied_rows[0]["reason"] == "operator selected best fit"
+    assert applied_rows[0]["scenario_index"] == 0
+    assert applied_rows[0]["plan_run_id"] == "test_plan_apply_tracks_reason"
