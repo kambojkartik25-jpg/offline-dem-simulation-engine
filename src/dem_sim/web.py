@@ -7,7 +7,7 @@ import random
 import time
 from copy import deepcopy
 from io import StringIO
-from math import isnan
+from math import isfinite, isnan
 from pathlib import Path
 from datetime import datetime
 from typing import Any
@@ -390,6 +390,22 @@ def _json_list(value: Any) -> list[Any]:
     return []
 
 
+def _json_sanitize_non_finite(value: Any) -> Any:
+    """Recursively replace NaN/Inf values so payloads are valid json/jsonb."""
+    if isinstance(value, dict):
+        return {k: _json_sanitize_non_finite(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_sanitize_non_finite(v) for v in value]
+    if isinstance(value, float):
+        return value if isfinite(value) else None
+    return value
+
+
+def _json_dumps_safe(value: Any) -> str:
+    """JSON dump compatible with Postgres jsonb (no NaN/Inf tokens)."""
+    return json.dumps(_json_sanitize_non_finite(value), allow_nan=False)
+
+
 def _summarize_state_snapshot(state: dict[str, Any]) -> dict[str, Any]:
     silos = deepcopy(state.get("silos", []))
     layers = deepcopy(state.get("layers", []))
@@ -694,7 +710,7 @@ def _optimize_brew_for_plan_run(
         SET status = 'optimized', optimize_result = %s::jsonb, updated_at = NOW()
         WHERE schedule_id = %s AND brew_id = %s
         """,
-        (json.dumps(opt_out), schedule_id, brew_id),
+        (_json_dumps_safe(opt_out), schedule_id, brew_id),
     )
     optimize_rows = fetchall(
         """
@@ -1932,6 +1948,28 @@ def _normalize_discharge_to_target(
     return out
 
 
+def _fractions_from_total_discharge(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return rows with discharge_fraction as share of total discharged mass."""
+    total = float(
+        sum(max(0.0, float(r.get("discharge_mass_kg", 0.0) or 0.0)) for r in (rows or []))
+    )
+    out: list[dict[str, Any]] = []
+    for row in rows or []:
+        mass = max(0.0, float(row.get("discharge_mass_kg", 0.0) or 0.0))
+        rec = dict(row)
+        rec["discharge_fraction"] = round((mass / total) if total > 1e-12 else 0.0, 6)
+        out.append(rec)
+    return out
+
+
+def _candidate_with_total_fraction(candidate: dict[str, Any]) -> dict[str, Any]:
+    out = dict(candidate)
+    out["recommended_discharge"] = _fractions_from_total_discharge(
+        candidate.get("recommended_discharge", []) or []
+    )
+    return out
+
+
 def _build_standard_equal_split_candidate(
     *,
     inputs: dict[str, pd.DataFrame],
@@ -2788,7 +2826,7 @@ def create_app() -> FastAPI:
             SET status = 'optimized', optimize_result = %s::jsonb, updated_at = NOW()
             WHERE schedule_id = %s AND brew_id = %s
             """,
-            (json.dumps(out), schedule_id, brew_id),
+            (_json_dumps_safe(out), schedule_id, brew_id),
         )
         return out
 
@@ -3109,7 +3147,7 @@ def create_app() -> FastAPI:
             )
             for cand, sc in zip(top_candidates, batch_scores):
                 cand["objective_score"] = float(sc)
-        all_evaluated_candidates = json.loads(json.dumps(top_candidates))
+        all_evaluated_candidates = deepcopy(top_candidates)
 
         diversity_silo_ids = sorted(str(sid) for sid in silo_ids)
         selected_optimized = _pick_diverse_candidates_by_fraction_distance(
@@ -3146,6 +3184,10 @@ def create_app() -> FastAPI:
             sorted(scored, key=lambda c: c["brewmaster_prob_selected"], reverse=True)
             + unscored
         )
+        top_candidates = [_candidate_with_total_fraction(c) for c in top_candidates]
+        best_discharge = _fractions_from_total_discharge(best_discharge)
+        standard_candidate = _candidate_with_total_fraction(standard_candidate)
+        all_evaluated_candidates = [_candidate_with_total_fraction(c) for c in all_evaluated_candidates]
 
         # Surface the winner explicitly for easy frontend access.
         brewmaster_recommendation = None
@@ -3232,10 +3274,10 @@ def create_app() -> FastAPI:
                     req.plan_run_id,
                     sim_event_id,
                     float(out["objective_score"]),
-                    json.dumps(out["recommended_discharge"]),
-                    json.dumps(out["target_params"]),
-                    json.dumps(out["top_candidates"]),
-                    json.dumps(out["best_run"]),
+                    _json_dumps_safe(out["recommended_discharge"]),
+                    _json_dumps_safe(out["target_params"]),
+                    _json_dumps_safe(out["top_candidates"]),
+                    _json_dumps_safe(out["best_run"]),
                 ),
             )
         except Exception:
