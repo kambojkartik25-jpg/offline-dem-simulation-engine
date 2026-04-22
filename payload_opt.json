@@ -1,0 +1,6 @@
+﻿{
+  "iterations": 80,
+  "seed": 42,
+  "config": {"steps": 800},
+  "include_all_candidates": false
+}

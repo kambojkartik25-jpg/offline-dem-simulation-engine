@@ -1,0 +1,24 @@
+﻿{
+  "plan_run_id": "run_1776775213864_92utrp",
+  "seed": 42,
+  "silos_count": 3,
+  "lots_count": 100,
+  "lot_size_kg": 25000,
+  "schedule_id": null,
+  "name": "MVP Brew Schedule",
+  "brews_count": 7,
+  "target_params": {
+    "moisture_pct": 4.5,
+    "fine_extract_db_pct": 81,
+    "wort_pH": 5.8,
+    "diastatic_power_WK": 250,
+    "total_protein_pct": 10.8,
+    "wort_colour_EBC": 3.5
+  },
+  "optimize_iterations": 80,
+  "optimize_seed": 42,
+  "config": {
+    "steps": 800
+  },
+  "include_all_candidates": false
+}
