@@ -16,33 +16,29 @@ If the image does not render, place the diagram file at:
 
 ## High-Level Components
 
-1. Frontend UI
-- Files: `src/dem_sim/ui/*`
-- Role: trigger simulation/optimization endpoints and display candidate scenarios.
-
-2. Backend API (FastAPI)
+1. Backend API (FastAPI)
 - File: `src/dem_sim/web.py`
 - Role: orchestration, validation, optimization loops, schedule endpoints, persistence calls.
 
-3. Simulation/Optimization Core
+2. Simulation/Optimization Core
 - Files: `src/dem_sim/service.py`, `src/dem_sim/model.py`
 - Role: execute discharge physics, layer contribution simulation, blended parameter estimation.
 
-4. State and Inventory Engine
+3. State and Inventory Engine
 - File: `src/dem_sim/state.py`
 - Role: in-memory state lifecycle, fill simulation, discharge application.
 
-5. Persistence Layer
+4. Persistence Layer
 - Files: `src/dem_sim/db.py`, `src/dem_sim/schema.py`, `src/dem_sim/storage.py`
 - Role: PostgreSQL access, schema management, event/result snapshots.
 
-6. Data and Validation
+5. Data and Validation
 - Files: `src/dem_sim/sample_data.py`, `src/dem_sim/synthetic.py`, `src/dem_sim/reporting.py`
 - Role: seed/random data generation and input/COA validation.
 
 ## Request Flow (Text Diagram)
 
-`UI -> FastAPI endpoint (web.py) -> validate inputs -> run_blend/model simulation -> score/rank (optimize path) -> persist events/results -> response`
+`Client -> FastAPI endpoint (web.py) -> validate inputs -> run_blend/model simulation -> score/rank (optimize path) -> persist events/results -> response`
 
 ## Core Runtime Paths
 

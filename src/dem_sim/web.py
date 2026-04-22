@@ -7,7 +7,7 @@ import random
 import time
 from copy import deepcopy
 from io import StringIO
-from math import isnan
+from math import isfinite, isnan
 from pathlib import Path
 from datetime import datetime
 from typing import Any
@@ -16,9 +16,9 @@ import numpy as np
 import pandas as pd
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .reporting import validate_inputs_shape, validate_supplier_coa
@@ -390,6 +390,31 @@ def _json_list(value: Any) -> list[Any]:
     return []
 
 
+def _preferred_brewmaster_candidate(optimize_result: dict[str, Any]) -> dict[str, Any] | None:
+    recommendation = _json_obj(optimize_result.get("brewmaster_recommendation"))
+    if not recommendation:
+        return None
+    if recommendation.get("prob_selected") is None:
+        return None
+    return recommendation
+
+
+def _json_sanitize_non_finite(value: Any) -> Any:
+    """Recursively replace NaN/Inf values so payloads are valid json/jsonb."""
+    if isinstance(value, dict):
+        return {k: _json_sanitize_non_finite(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_sanitize_non_finite(v) for v in value]
+    if isinstance(value, float):
+        return value if isfinite(value) else None
+    return value
+
+
+def _json_dumps_safe(value: Any) -> str:
+    """JSON dump compatible with Postgres jsonb (no NaN/Inf tokens)."""
+    return json.dumps(_json_sanitize_non_finite(value), allow_nan=False)
+
+
 def _summarize_state_snapshot(state: dict[str, Any]) -> dict[str, Any]:
     silos = deepcopy(state.get("silos", []))
     layers = deepcopy(state.get("layers", []))
@@ -588,10 +613,12 @@ def _plan_run_response(plan_run_id: str) -> dict[str, Any]:
     summary = _summarize_state_snapshot(state)
     scenarios: list[dict[str, Any]] = []
     target_params: dict[str, Any] = {}
+    preferred_candidate: dict[str, Any] | None = None
     if current_brew:
         target_params = _json_obj(current_brew.get("target_params"))
         optimize_result = _json_obj(current_brew.get("optimize_result"))
         scenarios = _json_list(optimize_result.get("top_candidates"))
+        preferred_candidate = _preferred_brewmaster_candidate(optimize_result)
     return {
         "plan_run": head,
         "schedule": {
@@ -620,6 +647,7 @@ def _plan_run_response(plan_run_id: str) -> dict[str, Any]:
             if current_brew
             else None
         ),
+        "preferred_candidate": preferred_candidate,
         "scenarios": scenarios,
         "inventory": {"state": state, "summary": summary},
     }
@@ -694,7 +722,7 @@ def _optimize_brew_for_plan_run(
         SET status = 'optimized', optimize_result = %s::jsonb, updated_at = NOW()
         WHERE schedule_id = %s AND brew_id = %s
         """,
-        (json.dumps(opt_out), schedule_id, brew_id),
+        (_json_dumps_safe(opt_out), schedule_id, brew_id),
     )
     optimize_rows = fetchall(
         """
@@ -1310,6 +1338,9 @@ DISCHARGE_FRACTION_MIN = 0.0
 DISCHARGE_FRACTION_MAX = 1.0
 FIXED_DISCHARGE_TARGET_KG = 9000.0
 FIXED_DISCHARGE_TOL_KG = 1e-3
+MIN_TOTAL_DISCHARGE_SHARE = 0.05
+MAX_TOTAL_DISCHARGE_SHARE = 0.90
+MIN_CANDIDATE_POOL_DISTANCE = 0.15
 TARGET_OBJECTIVE_MODE: dict[str, str] = {
     # One-sided objective rules:
     # - "max": penalty only when actual > target
@@ -1328,12 +1359,30 @@ HIDDEN_BLEND_PARAM_KEYS: set[str] = {
 }
 
 
-def _visible_blended_params(params: dict[str, Any]) -> dict[str, float]:
-    return {
-        str(k): float(v)
-        for k, v in (params or {}).items()
-        if str(k) not in HIDDEN_BLEND_PARAM_KEYS
-    }
+def _json_sanitize(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(k): _json_sanitize(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_sanitize(v) for v in value]
+    if isinstance(value, tuple):
+        return [_json_sanitize(v) for v in value]
+    if isinstance(value, float):
+        return value if isfinite(value) else None
+    return value
+
+
+def _visible_blended_params(params: dict[str, Any]) -> dict[str, float | None]:
+    visible: dict[str, float | None] = {}
+    for k, v in (params or {}).items():
+        key = str(k)
+        if key in HIDDEN_BLEND_PARAM_KEYS:
+            continue
+        try:
+            numeric = float(v)
+        except (TypeError, ValueError):
+            continue
+        visible[key] = numeric if isfinite(numeric) else None
+    return visible
 
 
 # ---------------------------------------------------------------------------
@@ -1370,9 +1419,16 @@ def _brewmaster_score_candidates(
     import os
     import requests as _requests
 
-    url = os.getenv("BREWMASTER_ENDPOINT_URL", "https://bq-brewmaster-endpoint.germanywestcentral.inference.ml.azure.com/score").strip()
+    url = os.getenv(
+        "BREWMASTER_ENDPOINT_URL",
+        "https://bq-brewmaster-endpoint.germanywestcentral.inference.ml.azure.com/score",
+    ).strip()
     key = os.getenv("BREWMASTER_API_KEY", "").strip()
     if not url or not key:
+        print(
+            "[brewmaster] skipping endpoint scoring: "
+            f"url_set={bool(url)} api_key_set={bool(key)}"
+        )
         return candidates
 
     rows = []
@@ -1399,10 +1455,15 @@ def _brewmaster_score_candidates(
         ])
 
     try:
+        print(
+            "[brewmaster] scoring candidates via endpoint: "
+            f"url={url} candidate_count={len(rows)} seed={seed} tls_verify=False"
+        )
         resp = _requests.post(
             url,
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
             json={"input_data": {"columns": _BREWMASTER_FEATURE_COLUMNS, "data": rows}},
+            verify=False,
             timeout=10,
         )
         resp.raise_for_status()
@@ -1428,6 +1489,11 @@ def _brewmaster_score_candidates(
 
         if best_idx >= 0:
             candidates[best_idx]["brewmaster_top_pick"] = True
+        print(
+            "[brewmaster] endpoint scoring succeeded: "
+            f"predictions={len(predictions)} probabilities={len(probabilities)} "
+            f"top_pick_candidate_num={best_idx + 1 if best_idx >= 0 else 'none'}"
+        )
 
     except Exception as exc:
         print(f"[brewmaster] endpoint call failed (non-fatal): {exc}")
@@ -1713,51 +1779,6 @@ def _fraction_distance(a: list[float], b: list[float]) -> float:
     return float(np.linalg.norm(np.asarray(a, dtype=np.float64) - np.asarray(b, dtype=np.float64)))
 
 
-def _pick_diverse_candidates_by_fraction_distance(
-    candidates: list[dict[str, Any]],
-    silo_ids: list[str],
-    k: int = 4,
-    min_dist: float = 0.35,
-) -> list[dict[str, Any]]:
-    """Select candidates far apart in discharge-fraction space (maximin)."""
-    if len(candidates) <= k:
-        return sorted(candidates, key=lambda x: float(x.get("objective_score", float("inf"))))
-    pool = sorted(candidates, key=lambda x: float(x.get("objective_score", float("inf"))))
-    selected: list[dict[str, Any]] = [pool[0]]
-    selected_vecs = [_fraction_vector_for_candidate(pool[0], silo_ids)]
-    remaining = pool[1:]
-    while remaining and len(selected) < k:
-        best_idx = None
-        best_min_dist = -1.0
-        for idx, cand in enumerate(remaining):
-            vec = _fraction_vector_for_candidate(cand, silo_ids)
-            min_d = min(_fraction_distance(vec, svec) for svec in selected_vecs)
-            if min_d > best_min_dist:
-                best_min_dist = min_d
-                best_idx = idx
-        if best_idx is None:
-            break
-        cand = remaining.pop(best_idx)
-        vec = _fraction_vector_for_candidate(cand, silo_ids)
-        # Enforce a minimum separation if possible; otherwise fall back to farthest.
-        if best_min_dist + 1e-9 < min_dist:
-            found = None
-            found_vec = None
-            for idx, alt in enumerate(remaining):
-                avec = _fraction_vector_for_candidate(alt, silo_ids)
-                amin = min(_fraction_distance(avec, svec) for svec in selected_vecs)
-                if amin + 1e-9 >= min_dist:
-                    found = idx
-                    found_vec = avec
-                    break
-            if found is not None:
-                cand = remaining.pop(found)
-                vec = found_vec or vec
-        selected.append(cand)
-        selected_vecs.append(vec)
-    return selected
-
-
 def _clip_fraction(v: float) -> float:
     return max(DISCHARGE_FRACTION_MIN, min(DISCHARGE_FRACTION_MAX, float(v)))
 
@@ -1932,6 +1953,51 @@ def _normalize_discharge_to_target(
     return out
 
 
+def _fractions_from_total_discharge(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return rows with discharge_fraction as share of total discharged mass."""
+    total = float(
+        sum(max(0.0, float(r.get("discharge_mass_kg", 0.0) or 0.0)) for r in (rows or []))
+    )
+    out: list[dict[str, Any]] = []
+    for row in rows or []:
+        mass = max(0.0, float(row.get("discharge_mass_kg", 0.0) or 0.0))
+        rec = dict(row)
+        rec["discharge_fraction"] = round((mass / total) if total > 1e-12 else 0.0, 6)
+        out.append(rec)
+    return out
+
+
+def _total_discharge_share_within_bounds(
+    rows: list[dict[str, Any]],
+    *,
+    min_share: float = MIN_TOTAL_DISCHARGE_SHARE,
+    max_share: float = MAX_TOTAL_DISCHARGE_SHARE,
+) -> bool:
+    fractions = _fractions_from_total_discharge(rows)
+    if not fractions:
+        return False
+    return all(
+        min_share - 1e-9 <= float(row.get("discharge_fraction", 0.0) or 0.0) <= max_share + 1e-9
+        for row in fractions
+    )
+
+
+def _candidate_with_total_fraction(candidate: dict[str, Any]) -> dict[str, Any]:
+    out = dict(candidate)
+    out["recommended_discharge"] = _fractions_from_total_discharge(
+        candidate.get("recommended_discharge", []) or []
+    )
+    return out
+
+
+def _total_fraction_vector_for_rows(rows: list[dict[str, Any]], silo_ids: list[str]) -> list[float]:
+    by_silo = {
+        str(r.get("silo_id", "")): float(r.get("discharge_fraction", 0.0) or 0.0)
+        for r in _fractions_from_total_discharge(rows)
+    }
+    return [by_silo.get(str(sid), 0.0) for sid in silo_ids]
+
+
 def _build_standard_equal_split_candidate(
     *,
     inputs: dict[str, pd.DataFrame],
@@ -2026,8 +2092,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    ui_dir = Path(__file__).resolve().parent / "ui"
-    app.mount("/ui", StaticFiles(directory=ui_dir, html=True), name="ui")
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -2407,7 +2471,7 @@ def create_app() -> FastAPI:
                             "plan_run_id": plan_run_id,
                             "data": _plan_run_response(plan_run_id),
                         }
-                    yield f"data: {json.dumps(payload)}\n\n"
+                    yield f"data: {json.dumps(jsonable_encoder(payload))}\n\n"
                 else:
                     yield ": keepalive\n\n"
                 time.sleep(1.0)
@@ -2788,7 +2852,7 @@ def create_app() -> FastAPI:
             SET status = 'optimized', optimize_result = %s::jsonb, updated_at = NOW()
             WHERE schedule_id = %s AND brew_id = %s
             """,
-            (json.dumps(out), schedule_id, brew_id),
+            (_json_dumps_safe(out), schedule_id, brew_id),
         )
         return out
 
@@ -3027,6 +3091,7 @@ def create_app() -> FastAPI:
         best_discharge: list[dict[str, Any]] = []
         top_candidates: list[dict[str, Any]] = []
         best_fractions: list[float] = []
+        accepted_candidate_vectors: list[list[float]] = []
 
         def evaluate_fractions(fracs: list[float]) -> None:
             nonlocal best_score, best_result, best_discharge, best_fractions
@@ -3042,6 +3107,14 @@ def create_app() -> FastAPI:
                 available_by_silo=available_by_silo,
                 target_total_kg=FIXED_DISCHARGE_TARGET_KG,
             )
+            if not _total_discharge_share_within_bounds(candidate_rows):
+                return
+            candidate_total_fraction_vec = _total_fraction_vector_for_rows(candidate_rows, silo_ids)
+            if any(
+                _fraction_distance(candidate_total_fraction_vec, existing_vec) < MIN_CANDIDATE_POOL_DISTANCE
+                for existing_vec in accepted_candidate_vectors
+            ):
+                return
             candidate_inputs = dict(inputs)
             candidate_inputs["discharge"] = pd.DataFrame(candidate_rows)
             result = run_blend(candidate_inputs, cfg)
@@ -3061,6 +3134,7 @@ def create_app() -> FastAPI:
                 "total_discharged_mass_kg": discharged_total,
             }
             top_candidates.append(candidate_record)
+            accepted_candidate_vectors.append(candidate_total_fraction_vec)
             if score < best_score:
                 best_score = score
                 best_result = result
@@ -3109,22 +3183,10 @@ def create_app() -> FastAPI:
             )
             for cand, sc in zip(top_candidates, batch_scores):
                 cand["objective_score"] = float(sc)
-        all_evaluated_candidates = json.loads(json.dumps(top_candidates))
-
-        diversity_silo_ids = sorted(str(sid) for sid in silo_ids)
-        selected_optimized = _pick_diverse_candidates_by_fraction_distance(
-            top_candidates,
-            silo_ids=diversity_silo_ids,
-            k=4,
-            min_dist=0.35,
-        )
-        if len(selected_optimized) < 4 and top_candidates:
-            for cand in sorted(top_candidates, key=lambda x: float(x.get("objective_score", float("inf")))):
-                if len(selected_optimized) >= 4:
-                    break
-                if cand not in selected_optimized:
-                    selected_optimized.append(cand)
-        top_candidates = selected_optimized[:4]
+        all_evaluated_candidates = deepcopy(top_candidates)
+        selection_rng = random.Random(req.seed)
+        if len(top_candidates) > 4:
+            top_candidates = selection_rng.sample(top_candidates, 4)
         for cand in top_candidates:
             cand["scenario_type"] = "optimized"
         standard_candidate = _build_standard_equal_split_candidate(
@@ -3146,6 +3208,10 @@ def create_app() -> FastAPI:
             sorted(scored, key=lambda c: c["brewmaster_prob_selected"], reverse=True)
             + unscored
         )
+        top_candidates = [_candidate_with_total_fraction(c) for c in top_candidates]
+        best_discharge = _fractions_from_total_discharge(best_discharge)
+        standard_candidate = _candidate_with_total_fraction(standard_candidate)
+        all_evaluated_candidates = [_candidate_with_total_fraction(c) for c in all_evaluated_candidates]
 
         # Surface the winner explicitly for easy frontend access.
         brewmaster_recommendation = None
@@ -3232,10 +3298,10 @@ def create_app() -> FastAPI:
                     req.plan_run_id,
                     sim_event_id,
                     float(out["objective_score"]),
-                    json.dumps(out["recommended_discharge"]),
-                    json.dumps(out["target_params"]),
-                    json.dumps(out["top_candidates"]),
-                    json.dumps(out["best_run"]),
+                    _json_dumps_safe(out["recommended_discharge"]),
+                    _json_dumps_safe(out["target_params"]),
+                    _json_dumps_safe(out["top_candidates"]),
+                    _json_dumps_safe(out["best_run"]),
                 ),
             )
         except Exception:
@@ -3250,10 +3316,6 @@ def create_app() -> FastAPI:
         }
         _persist_result("optimize", out, payload=req.model_dump())
         return out
-
-    @app.get("/", include_in_schema=False)
-    def index() -> FileResponse:
-        return FileResponse(ui_dir / "index.html")
 
     return app
 

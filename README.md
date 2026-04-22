@@ -25,7 +25,7 @@ Production-grade simulator for estimating discharged malt blend composition from
 - [Project Structure](#project-structure)
 - [Installation](#installation)
 - [CLI Usage](#cli-usage)
-- [Web UI / API](#web-ui--api)
+- [API](#api)
 - [PostgreSQL Persistence](#postgresql-persistence)
 - [Lifecycle DB Testing](#lifecycle-db-testing)
 - [Running Tests](#running-tests)
@@ -378,11 +378,6 @@ src/dem_sim/
 ├── reporting.py      # Output artifact writers + COA validation (validate_supplier_coa)
 ├── sample_data.py    # Built-in sample dataset (hardcoded CSVs — 3 real suppliers)
 ├── synthetic.py      # Synthetic dataset generator (correlated multivariate normal COA)
-└── ui/
-    ├── index.html    # Web app shell
-    ├── styles.css    # Responsive UI styling
-    └── app.js        # Frontend behaviour and API integration
-
 tests/
 ├── conftest.py                    # Lifecycle test infrastructure + 7-invariant checker
 ├── test_lifecycle_silos.py        # 10 lifecycle DB scenario tests
@@ -471,7 +466,7 @@ PYTHONPATH=src python -m dem_sim run --in data/sample --out outputs/latest --aut
 
 ---
 
-## Web UI / API
+## API
 
 **Start the server:**
 ```bash
@@ -479,13 +474,7 @@ dem-sim-web --host 127.0.0.1 --port 8000
 ```
 
 Open:
-- `http://127.0.0.1:8000/` — full web UI
 - `http://127.0.0.1:8000/docs` — Swagger / OpenAPI
-
-**Operator flow (UI):**
-1. `Load Sample`
-2. `Validate Inputs`
-3. `Run Simulation`
 4. Configure optimization target + preset / iterations / seed
 5. `Optimize Blend`
 6. Review KPI strip, top candidates, scenario compare, explainability snapshot

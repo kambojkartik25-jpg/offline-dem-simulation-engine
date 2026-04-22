@@ -26,9 +26,10 @@ services:
         condition: service_healthy
     environment:
       DEM_SIM_DATABASE_URL: postgresql://postgres:postgres@db:5432/dem_sim
+      BREWMASTER_ENDPOINT_URL: ${BREWMASTER_ENDPOINT_URL:-https://bq-brewmaster-endpoint.germanywestcentral.inference.ml.azure.com/score}
+      BREWMASTER_API_KEY: ${BREWMASTER_API_KEY:-}
     ports:
       - "8000:8000"
 
 volumes:
   dem_sim_pgdata:
-

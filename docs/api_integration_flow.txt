@@ -2,7 +2,7 @@ DEM Simulation API Integration Flow (for a new external UI)
 Date: 2026-03-10
 
 ============================================================
-1) START AND ACCESS THE API/UI (PORT 8000)
+1) START AND ACCESS THE API (PORT 8000)
 ============================================================
 
 Start services with Podman:
@@ -20,8 +20,6 @@ Expected:
 Open in browser:
 - API Base URL: http://127.0.0.1:8000
 - Swagger Docs: http://127.0.0.1:8000/docs
-- Existing UI:   http://127.0.0.1:8000/
-- UI static path:http://127.0.0.1:8000/ui/index.html
 
 
 ============================================================

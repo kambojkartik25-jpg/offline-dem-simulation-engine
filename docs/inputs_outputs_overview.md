@@ -15,7 +15,7 @@
   - Required: `silo_id`
   - At least one per row: `discharge_mass_kg` or `discharge_fraction`
 
-### B. API Inputs (Web UI / external clients)
+### B. API Inputs (external clients)
 - `POST /api/validate` -> payload with `silos`, `layers`, `suppliers`, `discharge`, `config`
 - `POST /api/run` -> same payload as validate
 - `POST /api/optimize` -> run payload + `target_params`, `iterations`, `seed`
