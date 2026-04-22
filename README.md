@@ -1,4 +1,7 @@
-# Offline DEM Simulation Engine
+﻿# Offline DEM Simulation Engine
+
+Last Updated: 2026-04-22
+
 
 Production-grade simulator for estimating discharged malt blend composition from layered silo discharge, built for **brewery operations**. Uses the Beverloo mass-flow equation coupled with a Gaussian mixing kernel (and three optional brewery-specific physics extensions) to predict the lot-level blend at the discharge outlet.
 
@@ -16,6 +19,8 @@ Production-grade simulator for estimating discharged malt blend composition from
   - [Brew-Master Parameter Weights](#brew-master-parameter-weights)
   - [Inventory Feasibility Check](#inventory-feasibility-check)
   - [Diversity Selection](#diversity-selection)
+  - [Brewmaster Inference](#brewmaster-inference)
+  - [Discharge Fraction Semantics](#discharge-fraction-semantics)
 - [Data Quality & Validation](#data-quality--validation)
   - [Structural Validation](#structural-validation)
   - [Supplier COA Validation](#supplier-coa-validation)
@@ -41,7 +46,23 @@ Brewery malt silos are filled in layers (each layer = one supplier lot). During 
 
 > *"Given the current silo state and a target discharge volume, what lot proportions and blended COA parameters will come out?"*
 
-It supports the full silo lifecycle — charge → discharge → recharge → discharge — and validates seven physical invariants at every step.
+It supports the full silo lifecycle â€” charge â†’ discharge â†’ recharge â†’ discharge â€” and validates seven physical invariants at every step.
+
+---
+
+## Documentation Standard
+
+This repository follows a consistent Markdown documentation structure:
+- Repository level: `README.md`, `CHANGELOG.md`, `ARCHITECTURE.md`
+- Module/service level: `README.md`, `API.md`, `CONFIG.md` (where applicable)
+- Folder level: `README.md`, plus `EXPERIMENT_LOG.md` / `DATA_DICTIONARY.md` where relevant
+
+Primary doc links:
+- Architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
+- API: [src/dem_sim/API.md](src/dem_sim/API.md)
+- Config: [src/dem_sim/CONFIG.md](src/dem_sim/CONFIG.md)
+- Data dictionary: [data/DATA_DICTIONARY.md](data/DATA_DICTIONARY.md)
+- Experiment tracking: [scripts/EXPERIMENT_LOG.md](scripts/EXPERIMENT_LOG.md)
 
 ---
 
@@ -52,43 +73,43 @@ It supports the full silo lifecycle — charge → discharge → recharge → di
 The instantaneous mass-flow rate from each silo outlet is:
 
 ```
-Q = C · ρ · √g · (D - k·d)^2.5
+Q = C Â· Ï Â· âˆšg Â· (D - kÂ·d)^2.5
 ```
 
 | Symbol | Meaning | Typical value |
 |--------|---------|--------------|
 | `C` | discharge coefficient | 0.58 |
-| `ρ` | bulk density (kg/m³) | 610 (malt) |
-| `g` | gravity (m/s²) | 9.81 |
+| `Ï` | bulk density (kg/mÂ³) | 610 (malt) |
+| `g` | gravity (m/sÂ²) | 9.81 |
 | `D` | outlet diameter (m) | silo-specific |
 | `k` | dead-zone correction | 1.4 |
 | `d` | grain diameter (m) | 0.004 (malt) |
 
-The effective diameter `D - k·d` corrects for the grain dead-zone at the outlet edge.
+The effective diameter `D - kÂ·d` corrects for the grain dead-zone at the outlet edge.
 
 ### Gaussian Mixing Kernel
 
 Discharge is simulated in time steps. At each step the discharge front height `z_front` descends. The probability that a given layer contributes to the current timestep's outflow follows a Normal CDF centred on `z_front`:
 
 ```
-P(layer i) ∝ Φ((z1_i - z_front) / σ) - Φ((z0_i - z_front) / σ)
+P(layer i) âˆ Î¦((z1_i - z_front) / Ïƒ) - Î¦((z0_i - z_front) / Ïƒ)
 ```
 
-`σ` (sigma_m) controls the mixing width — larger values mean more inter-layer blending.
+`Ïƒ` (sigma_m) controls the mixing width â€” larger values mean more inter-layer blending.
 
 ### Brewery Physics Extensions
 
-Three optional improvements tuned for **malt grain** (3–6 mm, 550–650 kg/m³, moisture 3–12%). All default to `0.0` (off) and are fully backward-compatible.
+Three optional improvements tuned for **malt grain** (3â€“6 mm, 550â€“650 kg/mÂ³, moisture 3â€“12%). All default to `0.0` (off) and are fully backward-compatible.
 
 #### 1. Moisture-Dependent Cohesion (`moisture_beta`)
 
 Wet malt is more cohesive and flows slower. The effective mass-flow rate is reduced per-layer:
 
 ```
-dm_eff = dm × exp(−β × moisture_pct)
+dm_eff = dm Ã— exp(âˆ’Î² Ã— moisture_pct)
 ```
 
-- `moisture_beta = 0.0` → no correction (default)
+- `moisture_beta = 0.0` â†’ no correction (default)
 - Recommended production value: `0.05`
 - Per-layer moisture is sourced from `suppliers.csv`
 
@@ -97,24 +118,24 @@ dm_eff = dm × exp(−β × moisture_pct)
 As the silo empties, the grain column shortens and the mixing zone narrows:
 
 ```
-σ(t) = σ₀ × (h_remaining / h_initial) ^ α
+Ïƒ(t) = Ïƒâ‚€ Ã— (h_remaining / h_initial) ^ Î±
 ```
 
-- `sigma_alpha = 0.0` → constant σ (default)
+- `sigma_alpha = 0.0` â†’ constant Ïƒ (default)
 - Recommended production value: `0.4`
-- Higher `α` → mixing concentrates earlier, spreads less as silo empties
+- Higher `Î±` â†’ mixing concentrates earlier, spreads less as silo empties
 
 #### 3. Asymmetric Mixing Kernel (`skew_alpha`)
 
 Real hopper geometry creates convergence zones that bias discharge toward sub-front layers. Implemented as an **exponential tilt** applied after the Normal CDF:
 
 ```
-weight_i = exp(α × (z_center_i − z_front) / σ)
+weight_i = exp(Î± Ã— (z_center_i âˆ’ z_front) / Ïƒ)
 ```
 
-- `skew_alpha = 0.0` → symmetric Gaussian (default)
-- `skew_alpha = −2.0` → biases toward layers below the front (hopper convergence zone)
-- Recommended production value: `−2.0`
+- `skew_alpha = 0.0` â†’ symmetric Gaussian (default)
+- `skew_alpha = âˆ’2.0` â†’ biases toward layers below the front (hopper convergence zone)
+- Recommended production value: `âˆ’2.0`
 - Always strictly positive (unlike skew-normal CDF surrogates which can go non-monotone)
 
 **Combined recommended settings for brewery malt:**
@@ -132,22 +153,22 @@ dem-sim run --in data/sample --out outputs/latest \
 
 ### Search Strategy
 
-The `/api/optimize` endpoint searches for discharge fractions that produce a blended COA as close as possible to a user-supplied target, while keeping total discharged mass fixed at 12,000 kg.
+The `/api/optimize` endpoint searches for discharge fractions that produce a blended COA as close as possible to a user-supplied target, while keeping total discharged mass fixed at 9,000 kg.
 
-**Algorithm — Hybrid Explore / Exploit:**
+**Algorithm â€” Hybrid Explore / Exploit:**
 
 ```
 total_iterations = N
-  explore phase (60%): stratified random sampling across [0.2, 0.8] fraction space
+  explore phase (60%): stratified random sampling across [0.0, 1.0] fraction space
   exploit phase (40%): simulated-annealing local perturbation around current best
 ```
 
 Each candidate is evaluated by running the full physics simulation and scoring the resulting blended COA against the target using the objective function below.
 
-**Objective function — Normalised Weighted L2:**
+**Objective function â€” Normalised Weighted L2:**
 
 ```
-score = √( Σ  w_i × ((actual_i − target_i) / range_i)² )
+score = âˆš( Î£  w_i Ã— ((actual_i âˆ’ target_i) / range_i)Â² )
 ```
 
 where `range_i` is the EBC/ASBC reference range for parameter `i` and `w_i` is the brew-master importance weight.
@@ -160,12 +181,12 @@ Equal weights across all six COA parameters would allow the optimizer to sacrifi
 
 | Parameter | Weight | Brewing rationale |
 |-----------|--------|-------------------|
-| `diastatic_power_WK` | **0.30** | Enzyme activity — cannot be corrected in-process without exogenous enzymes |
-| `fine_extract_db_pct` | **0.25** | Yield and economics — directly drives alcohol content and cost per brew |
-| `wort_pH` | **0.20** | Mash chemistry — affects enzyme activity windows and hop utilisation; partially correctable with salts |
-| `total_protein_pct` | **0.15** | Haze and head retention — manageable through process (finings, protein rest) |
-| `moisture_pct` | **0.07** | Storage and yield — predictable and consistent; low brew-day impact |
-| `wort_colour_EBC` | **0.03** | Spec parameter — least critical for base-malt blending |
+| `diastatic_power_WK` | **0.30** | Enzyme activity â€” cannot be corrected in-process without exogenous enzymes |
+| `fine_extract_db_pct` | **0.25** | Yield and economics â€” directly drives alcohol content and cost per brew |
+| `wort_pH` | **0.20** | Mash chemistry â€” affects enzyme activity windows and hop utilisation; partially correctable with salts |
+| `total_protein_pct` | **0.15** | Haze and head retention â€” manageable through process (finings, protein rest) |
+| `moisture_pct` | **0.07** | Storage and yield â€” predictable and consistent; low brew-day impact |
+| `wort_colour_EBC` | **0.03** | Spec parameter â€” least critical for base-malt blending |
 
 The weights are defined in `PARAM_WEIGHTS` in `web.py` and are returned in every `/api/optimize` response under `param_weights` for full auditability.
 
@@ -190,12 +211,12 @@ If any target parameter falls outside `[achievable_min, achievable_max]`, a feas
     "achievable_min": 3.86,
     "achievable_max": 3.98,
     "direction": "above",
-    "message": "wort_colour_EBC: target 4.5 is above the achievable inventory range [3.86 – 3.98]"
+    "message": "wort_colour_EBC: target 4.5 is above the achievable inventory range [3.86 â€“ 3.98]"
   }
 ]
 ```
 
-The optimizer still runs and returns the closest achievable blend — the warning tells the brewer why the objective score is high.
+The optimizer still runs and returns the closest achievable blend â€” the warning tells the brewer why the objective score is high.
 
 ---
 
@@ -211,6 +232,37 @@ This ensures the brewer sees meaningfully different blend strategies, not minor 
 
 ---
 
+### Brewmaster Inference
+
+After candidate generation, the optimizer can score candidates with the Brewmaster inference endpoint.
+
+- Features are built in-memory from each candidate using `_BREWMASTER_FEATURE_COLUMNS`.
+- Endpoint call is made in `_brewmaster_score_candidates(...)`.
+- Per candidate, the response fields are attached:
+  - `brewmaster_prob_selected` (class-1 probability)
+  - `brewmaster_prediction` (0/1 label)
+  - `brewmaster_top_pick` (true for highest-probability candidate)
+- Candidates are sorted by `brewmaster_prob_selected` descending when available.
+
+Fallback strategy:
+
+- If `BREWMASTER_ENDPOINT_URL` or `BREWMASTER_API_KEY` is missing, candidates are returned unchanged.
+- If endpoint call fails (timeout/network/parse), optimization continues and candidates are returned unchanged.
+
+---
+
+### Discharge Fraction Semantics
+
+For optimize responses, `recommended_discharge[*].discharge_fraction` is represented as:
+
+```
+discharge_fraction = discharge_mass_kg / total_discharged_mass_kg
+```
+
+This means fraction is a contribution share of the total discharged blend (UI-friendly percentage), while the optimizer still evaluates candidates using physically normalized discharge masses.
+
+---
+
 ## Data Quality & Validation
 
 ### Structural Validation
@@ -221,8 +273,8 @@ This ensures the brewer sees meaningfully different blend strategies, not minor 
 - No duplicate `silo_id` or `(silo_id, layer_index)` pairs
 - All suppliers referenced in `layers.csv` exist in `suppliers.csv`
 - `capacity_kg`, `body_diameter_m`, `outlet_diameter_m` > 0
-- `segment_mass_kg` ≥ 0
-- `discharge_fraction` ∈ [0, 1]
+- `segment_mass_kg` â‰¥ 0
+- `discharge_fraction` âˆˆ [0, 1]
 
 ---
 
@@ -230,20 +282,20 @@ This ensures the brewer sees meaningfully different blend strategies, not minor 
 
 Every supplier's COA parameters are validated against two tiers of bounds grounded in **EBC Analytica** and **ASBC Methods of Analysis**:
 
-**Tier 1 — Hard science bounds (blocks request with HTTP 422):**
+**Tier 1 â€” Hard science bounds (blocks request with HTTP 422):**
 
 Values outside these ranges are physically impossible for commercial base malt and indicate a data entry error or unit mismatch.
 
 | Parameter | Min | Max | Reference |
 |-----------|-----|-----|-----------|
-| `moisture_pct` | 3.5% | 6.5% | EBC 4.2 — kiln floor minimum / storage limit |
-| `fine_extract_db_pct` | 78.0% | 86.0% | EBC 4.5.1 — minimum conversion / 2-row ceiling |
-| `wort_pH` | 5.6 | 6.2 | ASBC Malt-6 — buffering minimum / under-modification maximum |
-| `diastatic_power_WK` | 150 | 550 | EBC 4.12 — self-conversion minimum / specialty strain maximum |
-| `total_protein_pct` | 8.5% | 13.5% | EBC 4.3.1 — nitrogen-deficient minimum / haze-risk maximum |
-| `wort_colour_EBC` | 2.5 | 12.0 | EBC 8.5 — any kilned malt floor / pre-crystal ceiling |
+| `moisture_pct` | 3.5% | 6.5% | EBC 4.2 â€” kiln floor minimum / storage limit |
+| `fine_extract_db_pct` | 78.0% | 86.0% | EBC 4.5.1 â€” minimum conversion / 2-row ceiling |
+| `wort_pH` | 5.6 | 6.2 | ASBC Malt-6 â€” buffering minimum / under-modification maximum |
+| `diastatic_power_WK` | 150 | 550 | EBC 4.12 â€” self-conversion minimum / specialty strain maximum |
+| `total_protein_pct` | 8.5% | 13.5% | EBC 4.3.1 â€” nitrogen-deficient minimum / haze-risk maximum |
+| `wort_colour_EBC` | 2.5 | 12.0 | EBC 8.5 â€” any kilned malt floor / pre-crystal ceiling |
 
-**Tier 2 — Typical contract range (advisory warning, simulation runs):**
+**Tier 2 â€” Typical contract range (advisory warning, simulation runs):**
 
 Values inside science bounds but outside the typical range a commercial maltster would ship. The simulation proceeds but `coa_warnings` is populated in the response.
 
@@ -260,10 +312,10 @@ COA warnings are shown as amber cards in the validation panel and as an inline b
 
 **CLI output example:**
 ```
-[ERROR] suppliers.csv COA error: supplier 'SupA' — Moisture % value 95 is outside
-        physical science bounds [3.5–6.5] (EBC/ASBC reference). Check units or data entry.
-[WARN]  suppliers.csv COA warning: supplier 'SupB' — Diastatic Power (WK) value 480 is
-        outside typical contract range [200.0–450.0] but within science bounds [150.0–550.0].
+[ERROR] suppliers.csv COA error: supplier 'SupA' â€” Moisture % value 95 is outside
+        physical science bounds [3.5â€“6.5] (EBC/ASBC reference). Check units or data entry.
+[WARN]  suppliers.csv COA warning: supplier 'SupB' â€” Diastatic Power (WK) value 480 is
+        outside typical contract range [200.0â€“450.0] but within science bounds [150.0â€“550.0].
         Verify COA document.
 ```
 
@@ -277,23 +329,23 @@ The `dem-sim init-synthetic` command generates a physically realistic brewery da
 
 | Feature | Before | After |
 |---------|--------|-------|
-| COA correlations | None — all parameters independent | Multivariate normal with physics-backed correlation matrix |
+| COA correlations | None â€” all parameters independent | Multivariate normal with physics-backed correlation matrix |
 | Supplier profiles | Generic random values | Three commercial archetypes |
-| Lot-to-lot variation | Spans full parameter range | Tight ±σ reflecting commercial process control |
-| Lot mass | Fixed 2,000 kg | Variable 800–5,000 kg (truncated normal, mean 2,000 kg) |
-| Silo fill level | Always 100% full | 40–100% fill (reflects real mid-cycle inventory) |
+| Lot-to-lot variation | Spans full parameter range | Tight Â±Ïƒ reflecting commercial process control |
+| Lot mass | Fixed 2,000 kg | Variable 800â€“5,000 kg (truncated normal, mean 2,000 kg) |
+| Silo fill level | Always 100% full | 40â€“100% fill (reflects real mid-cycle inventory) |
 | Science bounds | Not enforced | All values clipped to EBC/ASBC limits |
 
 ### Correlation matrix (malting science basis)
 
 | Parameter pair | Correlation | Physical reason |
 |----------------|-------------|-----------------|
-| Extract ↔ Protein | **−0.70** | Higher protein = less starch = less fermentable yield |
-| Protein ↔ Diastatic Power | **+0.45** | High-protein grain has a larger enzyme-producing aleurone layer |
-| EBC Colour ↔ Diastatic Power | **−0.35** | Higher kilning temperature darkens malt but destroys amylase |
-| Extract ↔ Diastatic Power | **−0.20** | Slight yield / enzyme activity trade-off |
-| Protein ↔ pH | **−0.20** | Higher protein slightly buffers pH downward |
-| Moisture ↔ Extract | **−0.15** | Wetter malt has marginally less dry-matter yield |
+| Extract â†” Protein | **âˆ’0.70** | Higher protein = less starch = less fermentable yield |
+| Protein â†” Diastatic Power | **+0.45** | High-protein grain has a larger enzyme-producing aleurone layer |
+| EBC Colour â†” Diastatic Power | **âˆ’0.35** | Higher kilning temperature darkens malt but destroys amylase |
+| Extract â†” Diastatic Power | **âˆ’0.20** | Slight yield / enzyme activity trade-off |
+| Protein â†” pH | **âˆ’0.20** | Higher protein slightly buffers pH downward |
+| Moisture â†” Extract | **âˆ’0.15** | Wetter malt has marginally less dry-matter yield |
 
 ### Supplier archetypes
 
@@ -305,7 +357,7 @@ Each supplier is assigned one of three commercially realistic maltster profiles:
 | B | Standard Commercial (Malteurop, COFCO) | 81.8% | 10.85% | 335 | 4.0 |
 | C | High Enzyme (North American, BBM) | 81.1% | 11.4% | 360 | 3.7 |
 
-Notice the physical consistency: Archetype A (highest extract) has the lowest protein — exactly the relationship captured by the −0.70 extract/protein correlation.
+Notice the physical consistency: Archetype A (highest extract) has the lowest protein â€” exactly the relationship captured by the âˆ’0.70 extract/protein correlation.
 
 ---
 
@@ -330,33 +382,33 @@ All user inputs are validated client-side before any API call is made. Invalid f
 | Schedule lot size (kg) | 1 | 50000 | |
 | Schedule brews count | 1 | 50 | Integer |
 
-The payload JSON textarea is also validated before simulation — checks for valid JSON, presence of required keys (`silos`, `layers`, `suppliers`, `discharge`), and discharge fractions in [0, 1].
+The payload JSON textarea is also validated before simulation â€” checks for valid JSON, presence of required keys (`silos`, `layers`, `suppliers`, `discharge`), and discharge fractions in [0, 1].
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  CLI (dem_sim.cli)          Web API (dem_sim.web)        │
-│       │                           │                      │
-│       └──────────┬────────────────┘                      │
-│                  ▼                                       │
-│         Service Layer (dem_sim.service)                  │
-│              RunConfig dataclass                         │
-│                  │                                       │
-│                  ▼                                       │
-│         Physics Engine (dem_sim.model)                   │
-│    Beverloo + Gaussian kernel + 3 extensions             │
-│                  │                                       │
-│         ┌────────┴────────┐                              │
-│         ▼                 ▼                              │
-│    State (dem_sim.state)  Storage (dem_sim.storage)      │
-│    in-memory silo state   PostgreSQL / NullStorage       │
-└─────────────────────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚  CLI (dem_sim.cli)          Web API (dem_sim.web)        â”‚
+â”‚       â”‚                           â”‚                      â”‚
+â”‚       â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜                      â”‚
+â”‚                  â–¼                                       â”‚
+â”‚         Service Layer (dem_sim.service)                  â”‚
+â”‚              RunConfig dataclass                         â”‚
+â”‚                  â”‚                                       â”‚
+â”‚                  â–¼                                       â”‚
+â”‚         Physics Engine (dem_sim.model)                   â”‚
+â”‚    Beverloo + Gaussian kernel + 3 extensions             â”‚
+â”‚                  â”‚                                       â”‚
+â”‚         â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”                              â”‚
+â”‚         â–¼                 â–¼                              â”‚
+â”‚    State (dem_sim.state)  Storage (dem_sim.storage)      â”‚
+â”‚    in-memory silo state   PostgreSQL / NullStorage       â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
-**Storage pattern:** `NullStorage` is returned when `DEM_SIM_DATABASE_URL` is absent; `PostgresStorage` (SQLAlchemy + psycopg3) when present. The `layers` table uses an append-only snapshot pattern — current state is always `WHERE snapshot_id = MAX(snapshot_id)`.
+**Storage pattern:** `NullStorage` is returned when `DEM_SIM_DATABASE_URL` is absent; `PostgresStorage` (SQLAlchemy + psycopg3) when present. The `layers` table uses an append-only snapshot pattern â€” current state is always `WHERE snapshot_id = MAX(snapshot_id)`.
 
 ---
 
@@ -364,34 +416,34 @@ The payload JSON textarea is also validated before simulation — checks for val
 
 ```
 src/dem_sim/
-├── model.py          # Physics engine (Beverloo + Gaussian + 3 extensions)
-├── service.py        # RunConfig dataclass + run_blend orchestrator
-├── cli.py            # Command-line interface
-├── web.py            # FastAPI app and all API endpoints
-├── state.py          # In-memory silo state + lifecycle functions
-├── charger.py        # Lot allocation to silos (charge logic)
-├── storage.py        # PostgresStorage / NullStorage factory
-├── schema.py         # DDL for operational tables
-├── db.py             # psycopg3 connection helpers
-├── db_models.py      # SQLAlchemy ORM models
-├── io.py             # CSV input loading and output helpers
-├── reporting.py      # Output artifact writers + COA validation (validate_supplier_coa)
-├── sample_data.py    # Built-in sample dataset (hardcoded CSVs — 3 real suppliers)
-├── synthetic.py      # Synthetic dataset generator (correlated multivariate normal COA)
+â”œâ”€â”€ model.py          # Physics engine (Beverloo + Gaussian + 3 extensions)
+â”œâ”€â”€ service.py        # RunConfig dataclass + run_blend orchestrator
+â”œâ”€â”€ cli.py            # Command-line interface
+â”œâ”€â”€ web.py            # FastAPI app and all API endpoints
+â”œâ”€â”€ state.py          # In-memory silo state + lifecycle functions
+â”œâ”€â”€ charger.py        # Lot allocation to silos (charge logic)
+â”œâ”€â”€ storage.py        # PostgresStorage / NullStorage factory
+â”œâ”€â”€ schema.py         # DDL for operational tables
+â”œâ”€â”€ db.py             # psycopg3 connection helpers
+â”œâ”€â”€ db_models.py      # SQLAlchemy ORM models
+â”œâ”€â”€ io.py             # CSV input loading and output helpers
+â”œâ”€â”€ reporting.py      # Output artifact writers + COA validation (validate_supplier_coa)
+â”œâ”€â”€ sample_data.py    # Built-in sample dataset (hardcoded CSVs â€” 3 real suppliers)
+â”œâ”€â”€ synthetic.py      # Synthetic dataset generator (correlated multivariate normal COA)
 tests/
-├── conftest.py                    # Lifecycle test infrastructure + 7-invariant checker
-├── test_lifecycle_silos.py        # 10 lifecycle DB scenario tests
-├── test_physics_improvements.py   # 27 physics unit tests (3 extensions)
-├── test_model_validation.py       # Model input validation tests
-├── test_model_equivalence.py      # Regression equivalence
-├── test_model_performance.py      # Performance guard
-├── test_process_run_simulation.py # Fill-only simulation endpoint tests
-├── test_web_api.py                # Web API smoke tests
-└── test_smoke.py                  # End-to-end smoke test
+â”œâ”€â”€ conftest.py                    # Lifecycle test infrastructure + 7-invariant checker
+â”œâ”€â”€ test_lifecycle_silos.py        # 10 lifecycle DB scenario tests
+â”œâ”€â”€ test_physics_improvements.py   # 27 physics unit tests (3 extensions)
+â”œâ”€â”€ test_model_validation.py       # Model input validation tests
+â”œâ”€â”€ test_model_equivalence.py      # Regression equivalence
+â”œâ”€â”€ test_model_performance.py      # Performance guard
+â”œâ”€â”€ test_process_run_simulation.py # Fill-only simulation endpoint tests
+â”œâ”€â”€ test_web_api.py                # Web API smoke tests
+â””â”€â”€ test_smoke.py                  # End-to-end smoke test
 
 scripts/
-├── run_example.py      # Quick run using in-code example dataframes
-└── db_sanity_check.py  # DB schema/data sanity checks
+â”œâ”€â”€ run_example.py      # Quick run using in-code example dataframes
+â””â”€â”€ db_sanity_check.py  # DB schema/data sanity checks
 ```
 
 ---
@@ -408,7 +460,7 @@ Or install dependencies only:
 python -m pip install -r requirements.txt
 ```
 
-Requires Python ≥ 3.10.
+Requires Python â‰¥ 3.10.
 
 ---
 
@@ -447,16 +499,16 @@ dem-sim run --in data/sample --out outputs/latest \
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--moisture-beta` | `0.0` | Cohesion correction — higher β = wetter malt flows slower |
-| `--sigma-alpha` | `0.0` | Sigma height-scaling — mixing narrows as silo empties |
-| `--skew-alpha` | `0.0` | Asymmetric kernel — negative values bias toward sub-front layers |
+| `--moisture-beta` | `0.0` | Cohesion correction â€” higher Î² = wetter malt flows slower |
+| `--sigma-alpha` | `0.0` | Sigma height-scaling â€” mixing narrows as silo empties |
+| `--skew-alpha` | `0.0` | Asymmetric kernel â€” negative values bias toward sub-front layers |
 
 **`--steps` guidance:**
 
 | Range | Use case |
 |-------|----------|
-| 400–800 | Quick exploratory runs |
-| 1200–2000 | Default production planning |
+| 400â€“800 | Quick exploratory runs |
+| 1200â€“2000 | Default production planning |
 | 3000+ | High-fidelity sensitivity checks |
 
 **Without installing as a package:**
@@ -474,14 +526,14 @@ dem-sim-web --host 127.0.0.1 --port 8000
 ```
 
 Open:
-- `http://127.0.0.1:8000/docs` — Swagger / OpenAPI
+- `http://127.0.0.1:8000/docs` â€” Swagger / OpenAPI
 4. Configure optimization target + preset / iterations / seed
 5. `Optimize Blend`
 6. Review KPI strip, top candidates, scenario compare, explainability snapshot
 
 **Keyboard shortcuts:**
-- `Ctrl/Cmd + Enter` — run simulation
-- `Ctrl/Cmd + Shift + O` — optimize blend
+- `Ctrl/Cmd + Enter` â€” run simulation
+- `Ctrl/Cmd + Shift + O` â€” optimize blend
 
 **Key endpoints:**
 
@@ -531,32 +583,32 @@ If `DEM_SIM_DATABASE_URL` is not set, the app runs fully in-memory with no chang
 
 ## Lifecycle DB Testing
 
-The lifecycle tests validate that the full silo cycle — charge → discharge → recharge → discharge — maintains **seven physical invariants** at every single step, checked against both the database and the in-memory state.
+The lifecycle tests validate that the full silo cycle â€” charge â†’ discharge â†’ recharge â†’ discharge â€” maintains **seven physical invariants** at every single step, checked against both the database and the in-memory state.
 
 **Seven Invariants:**
 
 | ID | Invariant |
 |----|-----------|
-| INV-1 | **Mass conservation** — `db_remaining + cumulative_discharged == total_charged` (±0.01 kg) |
-| INV-2 | **Layer index integrity** — per silo, `layer_index` is contiguous 1..N with no gaps |
-| INV-3 | **Supplier consistency** — a `lot_id` always maps to the same supplier, never changes |
-| INV-4 | **No negative mass** — every `layers.loaded_mass >= 0` |
-| INV-5 | **Capacity never exceeded** — `SUM(loaded_mass per silo) <= capacity_kg` |
-| INV-6 | **Lot mass accounting** — `silo_mass + queue_mass <= original_charged_mass` per lot |
-| INV-7 | **DB matches memory** — DB total per silo == in-memory total per silo (±0.01 kg) |
+| INV-1 | **Mass conservation** â€” `db_remaining + cumulative_discharged == total_charged` (Â±0.01 kg) |
+| INV-2 | **Layer index integrity** â€” per silo, `layer_index` is contiguous 1..N with no gaps |
+| INV-3 | **Supplier consistency** â€” a `lot_id` always maps to the same supplier, never changes |
+| INV-4 | **No negative mass** â€” every `layers.loaded_mass >= 0` |
+| INV-5 | **Capacity never exceeded** â€” `SUM(loaded_mass per silo) <= capacity_kg` |
+| INV-6 | **Lot mass accounting** â€” `silo_mass + queue_mass <= original_charged_mass` per lot |
+| INV-7 | **DB matches memory** â€” DB total per silo == in-memory total per silo (Â±0.01 kg) |
 
 **Ten scenario tests:**
 
 | Scenario | What it tests |
 |----------|--------------|
 | Single charge + discharge | Baseline correctness |
-| Repeated discharges | 4 × 20% discharges, conservation at each step |
-| Charge → discharge → recharge → discharge | Core brewery cycle; new lots stack on top |
+| Repeated discharges | 4 Ã— 20% discharges, conservation at each step |
+| Charge â†’ discharge â†’ recharge â†’ discharge | Core brewery cycle; new lots stack on top |
 | Lot split across silos | 8000 kg lot distributes across two 5000 kg silos |
 | Capacity overflow | Excess stays in queue, never enters silos |
 | 20 random cycles | Mass conservation + snapshot_id monotonicity |
 | Supplier consistency | Exhaustive DB check of INV-3 across all history |
-| DB ↔ memory agreement | Explicit INV-7 check at every single step |
+| DB â†” memory agreement | Explicit INV-7 check at every single step |
 | Zero-mass layer cleanup | Fully discharged layers do not corrupt future ops |
 | Full brewery week | 6 lots initial fill, 5 brews, mid-week delivery |
 

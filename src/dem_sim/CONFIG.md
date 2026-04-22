@@ -1,4 +1,7 @@
-# Configuration Guide (dem_sim)
+﻿# Configuration Guide (dem_sim)
+
+Last Updated: 2026-04-22
+
 
 ## Runtime Environment Variables
 
@@ -39,4 +42,10 @@ Defined in `src/dem_sim/service.py` and used by `model.py`:
   1. `/api/data/generate-random`
   2. `/api/process/run_simulation`
   3. `/api/process/optimize`
+
+## Related Docs
+
+- Module overview: [README.md](README.md)
+- API contracts: [API.md](API.md)
+- Root runtime context: [../../README.md](../../README.md)
 

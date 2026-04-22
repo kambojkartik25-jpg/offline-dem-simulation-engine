@@ -1,6 +1,11 @@
-# Data Dictionary
+﻿# Data Dictionary
+
+Last Updated: 2026-04-22
+
 
 Field-level guide for core business entities used by simulation and optimization.
+
+Use this dictionary as the source of truth for data field meaning, expected type, and operational interpretation.
 
 ## Silos
 
