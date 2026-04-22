@@ -1,4 +1,11 @@
-# Inputs and Outputs Overview
+﻿# Inputs and Outputs Overview
+
+Last Updated: 2026-04-22
+
+Companion references:
+- Root architecture and runtime context: [../ARCHITECTURE.md](../ARCHITECTURE.md)
+- API endpoint-level details: [../src/dem_sim/API.md](../src/dem_sim/API.md)
+- Configuration notes: [../src/dem_sim/CONFIG.md](../src/dem_sim/CONFIG.md)
 
 ## 1) Main Inputs Used by the Codebase
 

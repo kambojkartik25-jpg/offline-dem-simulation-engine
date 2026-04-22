@@ -1,4 +1,7 @@
-# API Reference (dem_sim)
+﻿# API Reference (dem_sim)
+
+Last Updated: 2026-04-22
+
 
 Backend is served by FastAPI in `src/dem_sim/web.py`.
 
@@ -41,9 +44,21 @@ Backend is served by FastAPI in `src/dem_sim/web.py`.
 
 Defined in `src/dem_sim/web.py`.
 
+## Response Schema Notes
+
+- Most endpoints return JSON objects with explicit keys (not positional arrays).
+- Optimize responses include ranked `top_candidates`, `recommended_discharge`, and timing metadata.
+- Apply endpoints persist selected candidate index and applied event linkage for traceability.
+
 ## Error Patterns
 
 - `422` for invalid payload/constraints/COA violations
 - `404` for missing schedule/schedule item
 - `500` for unhandled backend exceptions
+
+## Related Docs
+
+- Module overview: [README.md](README.md)
+- Runtime/config details: [CONFIG.md](CONFIG.md)
+- System architecture: [../../ARCHITECTURE.md](../../ARCHITECTURE.md)
 

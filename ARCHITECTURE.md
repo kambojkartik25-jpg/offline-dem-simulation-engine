@@ -1,11 +1,21 @@
-# Architecture
+﻿# Architecture
+
+Last Updated: 2026-04-22
+
 
 This service is an offline-first simulation and optimization engine for silo discharge and blend quality prediction.
 
 See also:
-- Root overview: [README.md](/c:/Updated_Silo_discharge/offline-dem-simulation-engine/README.md)
-- API contracts: [src/dem_sim/API.md](/c:/Updated_Silo_discharge/offline-dem-simulation-engine/src/dem_sim/API.md)
-- Full deep dive: [docs/system_technical_documentation.md](/c:/Updated_Silo_discharge/offline-dem-simulation-engine/docs/system_technical_documentation.md)
+- Root overview: [README.md](README.md)
+- API contracts: [src/dem_sim/API.md](src/dem_sim/API.md)
+- Full deep dive: [docs/system_technical_documentation.md](docs/system_technical_documentation.md)
+
+## Platform Fit
+
+This service fits into BrewQuanta's platform as the simulation and optimization engine for:
+- silo inventory lifecycle execution (fill, optimize, apply discharge)
+- blend-quality prediction for operational decision support
+- persistence of simulation events/results for auditability and replay
 
 ## Architecture Diagram
 
@@ -61,3 +71,8 @@ Main operational tables:
 - `discharge_results`
 - `brew_schedules`
 - `brew_schedule_items`
+
+## Documentation Maintenance
+
+- Update this file whenever major components, data flows, or persistence boundaries change.
+- Keep links in sync with [README.md](README.md), [src/dem_sim/API.md](src/dem_sim/API.md), and [src/dem_sim/CONFIG.md](src/dem_sim/CONFIG.md).

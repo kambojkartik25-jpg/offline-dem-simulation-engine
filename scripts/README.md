@@ -1,4 +1,7 @@
-# Scripts Folder
+﻿# Scripts Folder
+
+Last Updated: 2026-04-22
+
 
 Utility scripts for local execution, diagnostics, and standalone optimization workflows.
 
@@ -15,4 +18,9 @@ Utility scripts for local execution, diagnostics, and standalone optimization wo
 
 - Prefer API paths for product behavior validation.
 - Use scripts for developer diagnostics and batch checks.
+
+## Experiment Tracking
+
+When running tuning or comparison experiments, log each run in:
+- [EXPERIMENT_LOG.md](EXPERIMENT_LOG.md)
 

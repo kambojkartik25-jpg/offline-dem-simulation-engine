@@ -1,4 +1,7 @@
-# Experiment Log
+﻿# Experiment Log
+
+Last Updated: 2026-04-22
+
 
 Track optimization experiments and tuning runs.
 
@@ -15,4 +18,9 @@ Track optimization experiments and tuning runs.
 - feasible candidate count
 - best objective score
 - top candidate spread
+
+## Related Docs
+
+- Optimization behavior: [../README.md](../README.md)
+- API contract for optimize: [../src/dem_sim/API.md](../src/dem_sim/API.md)
 
