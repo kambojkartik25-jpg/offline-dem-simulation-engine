@@ -30,6 +30,7 @@ Production-grade simulator for estimating discharged malt blend composition from
 - [Project Structure](#project-structure)
 - [Installation](#installation)
 - [CLI Usage](#cli-usage)
+- [Canonical Workflows](#canonical-workflows)
 - [API](#api)
 - [PostgreSQL Persistence](#postgresql-persistence)
 - [Lifecycle DB Testing](#lifecycle-db-testing)
@@ -431,9 +432,6 @@ src/dem_sim/
 â”œâ”€â”€ sample_data.py    # Built-in sample dataset (hardcoded CSVs â€” 3 real suppliers)
 â”œâ”€â”€ synthetic.py      # Synthetic dataset generator (correlated multivariate normal COA)
 tests/
-â”œâ”€â”€ conftest.py                    # Lifecycle test infrastructure + 7-invariant checker
-â”œâ”€â”€ test_lifecycle_silos.py        # 10 lifecycle DB scenario tests
-â”œâ”€â”€ test_physics_improvements.py   # 27 physics unit tests (3 extensions)
 â”œâ”€â”€ test_model_validation.py       # Model input validation tests
 â”œâ”€â”€ test_model_equivalence.py      # Regression equivalence
 â”œâ”€â”€ test_model_performance.py      # Performance guard
@@ -515,6 +513,29 @@ dem-sim run --in data/sample --out outputs/latest \
 ```bash
 PYTHONPATH=src python -m dem_sim run --in data/sample --out outputs/latest --auto-adjust
 ```
+
+---
+
+## Canonical Workflows
+
+Use these as the standard workflow entrypoints:
+
+- `prepare-data`
+  - `dem-sim init-sample --out data/sample`
+  - `dem-sim init-synthetic --out data/synthetic --seed 42 --silos 3 --suppliers 3 --lots 8`
+- `predict` (offline)
+  - `dem-sim run --in data/sample --out outputs/latest --auto-adjust`
+- `predict` (service)
+  - start API: `dem-sim-web --host 127.0.0.1 --port 8000`
+  - call: `POST /api/run` or `POST /api/optimize`
+- `evaluate`
+  - `python -m pytest -v`
+  - optional: `python scripts/export_top_candidates_csv.py --help`
+- `pipeline` / `batch`
+  - `python scripts/run_production_plan_batch.py --help`
+
+Training note:
+- This repository does not provide a standalone model-training entrypoint.
 
 ---
 
@@ -616,26 +637,12 @@ The lifecycle tests validate that the full silo cycle â€” charge â†’ d
 
 ## Running Tests
 
-**All tests (physics + lifecycle + API):**
+**All tests:**
 ```bash
-DEM_SIM_TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/dem_sim_test" \
-  python -m pytest -v
+python -m pytest -v
 ```
 
-**Physics tests only (no DB required):**
-```bash
-python -m pytest tests/test_physics_improvements.py -v
-```
-
-**Lifecycle DB tests only:**
-```bash
-DEM_SIM_TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/dem_sim_test" \
-  python -m pytest tests/test_lifecycle_silos.py -v
-```
-
-Lifecycle tests are **auto-skipped** when `DEM_SIM_TEST_DATABASE_URL` is not set.
-
-**Current test coverage: 44 tests, all passing.**
+For DB-dependent tests, configure the test database environment variables before running pytest.
 
 ---
 
@@ -687,3 +694,11 @@ The app is available at `http://localhost:8000`.
 |----------|-------------|
 | `DEM_SIM_DATABASE_URL` | PostgreSQL connection string for the app |
 | `DEM_SIM_TEST_DATABASE_URL` | Test database URL (lifecycle tests only) |
+| `BREWMASTER_API_KEY` | Optional Brewmaster scoring API key |
+| `BREWMASTER_ENDPOINT_URL` | Optional Brewmaster endpoint override |
+| `BREWMASTER_VERIFY_TLS` | Optional Brewmaster TLS verification override (`true/false`) |
+
+Secret handling notes:
+- Keep secrets in environment variables (local shell/compose env substitution or cloud secret injection).
+- Do not commit credentials in source-controlled files.
+- If `BREWMASTER_API_KEY` is missing, optimization still runs; endpoint scoring is skipped.

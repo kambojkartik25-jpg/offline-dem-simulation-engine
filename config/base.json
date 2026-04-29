@@ -1,0 +1,12 @@
+{
+  "api": {
+    "fixed_discharge_target_kg": 9000.0,
+    "fixed_discharge_tol_kg": 0.001,
+    "default_steps": 800
+  },
+  "brewmaster": {
+    "endpoint_url": "https://bq-brewmaster-endpoint.germanywestcentral.inference.ml.azure.com/score",
+    "timeout_s": 10,
+    "verify_tls": false
+  }
+}

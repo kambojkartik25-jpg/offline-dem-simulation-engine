@@ -1,0 +1,13 @@
+lot_id,supplier,source,moisture_pct,fine_extract_db_pct,wort_pH,diastatic_power_WK,total_protein_pct,wort_colour_EBC
+L1001,BBM,supplier_fallback,4.2,82.0,5.98,342.1,10.12,3.8
+L1002,COFCO,supplier_fallback,4.4,81.8,5.93,317.4,11.1,4.0
+L1003,Malteurop,supplier_fallback,4.3,81.2,5.97,336.9,10.5,3.8
+L1004,BBM,supplier_fallback,4.2,82.0,5.98,342.1,10.12,3.8
+L1005,COFCO,supplier_fallback,4.4,81.8,5.93,317.4,11.1,4.0
+L1006,Malteurop,supplier_fallback,4.3,81.2,5.97,336.9,10.5,3.8
+L1007,BBM,supplier_fallback,4.2,82.0,5.98,342.1,10.12,3.8
+L1008,COFCO,supplier_fallback,4.4,81.8,5.93,317.4,11.1,4.0
+L1009,Malteurop,supplier_fallback,4.3,81.2,5.97,336.9,10.5,3.8
+L1010,BBM,supplier_fallback,4.2,82.0,5.98,342.1,10.12,3.8
+L1011,COFCO,supplier_fallback,4.4,81.8,5.93,317.4,11.1,4.0
+L1012,Malteurop,supplier_fallback,4.3,81.2,5.97,336.9,10.5,3.8

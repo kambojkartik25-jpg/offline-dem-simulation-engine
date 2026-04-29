@@ -4,9 +4,9 @@ services:
     container_name: dem_sim_db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: dem_sim
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-dem_sim}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your environment}
     ports:
       - "5432:5432"
     volumes:
@@ -25,9 +25,10 @@ services:
       db:
         condition: service_healthy
     environment:
-      DEM_SIM_DATABASE_URL: postgresql://postgres:postgres@db:5432/dem_sim
+      DEM_SIM_DATABASE_URL: ${DEM_SIM_DATABASE_URL:?Set DEM_SIM_DATABASE_URL in your environment}
       BREWMASTER_ENDPOINT_URL: ${BREWMASTER_ENDPOINT_URL:-https://bq-brewmaster-endpoint.germanywestcentral.inference.ml.azure.com/score}
       BREWMASTER_API_KEY: ${BREWMASTER_API_KEY:-}
+      BREWMASTER_VERIFY_TLS: ${BREWMASTER_VERIFY_TLS:-false}
     ports:
       - "8000:8000"
 

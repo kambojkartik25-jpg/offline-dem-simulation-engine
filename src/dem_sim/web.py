@@ -45,9 +45,11 @@ from .state import (
     summarize_state,
 )
 from .storage import get_storage
+from .config_runtime import load_runtime_settings
 
 _STORAGE = get_storage()
 _STORAGE_READY = False
+_SETTINGS = load_runtime_settings()
 
 
 def _suppliers_from_incoming_queue_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -330,7 +332,9 @@ class ProductionPlanLoadRequest(BaseModel):
     target_params: dict[str, float] = Field(default_factory=dict)
     optimize_iterations: int = 80
     optimize_seed: int = 42
-    config: dict[str, Any] = Field(default_factory=lambda: {"steps": 800})
+    config: dict[str, Any] = Field(
+        default_factory=lambda: {"steps": int(_SETTINGS.get("api", {}).get("default_steps", 800))}
+    )
     include_all_candidates: bool = False
 
 
@@ -1336,8 +1340,8 @@ DEFAULT_PARAM_RANGES = {
 }
 DISCHARGE_FRACTION_MIN = 0.0
 DISCHARGE_FRACTION_MAX = 1.0
-FIXED_DISCHARGE_TARGET_KG = 9000.0
-FIXED_DISCHARGE_TOL_KG = 1e-3
+FIXED_DISCHARGE_TARGET_KG = float(_SETTINGS.get("api", {}).get("fixed_discharge_target_kg", 9000.0))
+FIXED_DISCHARGE_TOL_KG = float(_SETTINGS.get("api", {}).get("fixed_discharge_tol_kg", 1e-3))
 MIN_TOTAL_DISCHARGE_SHARE = 0.05
 MAX_TOTAL_DISCHARGE_SHARE = 0.90
 MIN_CANDIDATE_POOL_DISTANCE = 0.15
@@ -1416,13 +1420,15 @@ def _brewmaster_score_candidates(
     Silently skips if BREWMASTER_ENDPOINT_URL / BREWMASTER_API_KEY are unset
     or if the endpoint call fails, so optimization is never blocked.
     """
-    import os
     import requests as _requests
 
-    url = os.getenv(
-        "BREWMASTER_ENDPOINT_URL",
-        "https://bq-brewmaster-endpoint.germanywestcentral.inference.ml.azure.com/score",
-    ).strip()
+    import os
+    url = str(_SETTINGS.get("brewmaster", {}).get("endpoint_url", "")).strip()
+    if not url:
+        url = os.getenv(
+            "BREWMASTER_ENDPOINT_URL",
+            "https://bq-brewmaster-endpoint.germanywestcentral.inference.ml.azure.com/score",
+        ).strip()
     key = os.getenv("BREWMASTER_API_KEY", "").strip()
     if not url or not key:
         print(
@@ -1457,14 +1463,15 @@ def _brewmaster_score_candidates(
     try:
         print(
             "[brewmaster] scoring candidates via endpoint: "
-            f"url={url} candidate_count={len(rows)} seed={seed} tls_verify=False"
+            f"url={url} candidate_count={len(rows)} seed={seed} "
+            f"tls_verify={bool(_SETTINGS.get('brewmaster', {}).get('verify_tls', False))}"
         )
         resp = _requests.post(
             url,
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
             json={"input_data": {"columns": _BREWMASTER_FEATURE_COLUMNS, "data": rows}},
-            verify=False,
-            timeout=10,
+            verify=bool(_SETTINGS.get("brewmaster", {}).get("verify_tls", False)),
+            timeout=float(_SETTINGS.get("brewmaster", {}).get("timeout_s", 10)),
         )
         resp.raise_for_status()
         body = resp.json()
