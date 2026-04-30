@@ -127,45 +127,47 @@ def test_production_plan_apply_tracks_reason_and_scenarios() -> None:
     )
     assert apply_res.status_code == 200
 
-    tracked_schedule = fetchall(
-        "SELECT schedule_id, name FROM tracked_schedules WHERE schedule_id = %s",
+    schedule_rows = fetchall(
+        "SELECT schedule_id, name FROM brew_schedules WHERE schedule_id = %s",
         ("test_schedule_apply_tracks_reason",),
     )
-    assert tracked_schedule
+    assert schedule_rows
 
-    tracked_brew = fetchall(
+    brew_rows = fetchall(
         """
-        SELECT status, selected_candidate_index
-        FROM tracked_brews
+        SELECT status, selected_candidate_index, applied_event_id
+        FROM brew_schedule_items
         WHERE schedule_id = %s AND brew_id = %s
         """,
         ("test_schedule_apply_tracks_reason", current_brew["brew_id"]),
     )
-    assert tracked_brew
-    assert tracked_brew[0]["status"] == "applied"
-    assert tracked_brew[0]["selected_candidate_index"] == 0
+    assert brew_rows
+    assert brew_rows[0]["status"] == "applied"
+    assert int(brew_rows[0]["selected_candidate_index"]) == 0
+    assert brew_rows[0]["applied_event_id"] is not None
 
-    tracked_scenarios = fetchall(
+    plan_run_rows = fetchall(
         """
-        SELECT scenario_index
-        FROM tracked_scenarios
-        WHERE schedule_id = %s AND brew_id = %s
-        ORDER BY scenario_index
+        SELECT plan_run_id, schedule_id, last_event_id
+        FROM production_plan_runs
+        WHERE plan_run_id = %s
         """,
-        ("test_schedule_apply_tracks_reason", current_brew["brew_id"]),
+        ("test_plan_apply_tracks_reason",),
     )
-    assert tracked_scenarios
-    assert tracked_scenarios[0]["scenario_index"] == 0
+    assert plan_run_rows
+    assert plan_run_rows[0]["schedule_id"] == "test_schedule_apply_tracks_reason"
+    assert plan_run_rows[0]["last_event_id"] is not None
 
-    applied_rows = fetchall(
+    apply_event_rows = fetchall(
         """
-        SELECT reason, scenario_index, applied_event_id, plan_run_id
-        FROM tracked_applied_scenarios
-        WHERE schedule_id = %s AND brew_id = %s
+        SELECT id, event_type, plan_run_id, meta
+        FROM sim_events
+        WHERE plan_run_id = %s AND event_type = 'apply_discharge'
+        ORDER BY id DESC
+        LIMIT 1
         """,
-        ("test_schedule_apply_tracks_reason", current_brew["brew_id"]),
+        ("test_plan_apply_tracks_reason",),
     )
-    assert applied_rows
-    assert applied_rows[0]["reason"] == "operator selected best fit"
-    assert applied_rows[0]["scenario_index"] == 0
-    assert applied_rows[0]["plan_run_id"] == "test_plan_apply_tracks_reason"
+    assert apply_event_rows
+    assert apply_event_rows[0]["event_type"] == "apply_discharge"
+    assert apply_event_rows[0]["plan_run_id"] == "test_plan_apply_tracks_reason"

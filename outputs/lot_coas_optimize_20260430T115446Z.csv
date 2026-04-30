@@ -1,0 +1,13 @@
+lot_id,supplier,source,moisture_pct,fine_extract_db_pct,wort_pH,diastatic_power_WK,total_protein_pct,wort_colour_EBC
+LOT001,SPEC_LOT001,supplier_fallback,2.495,84.518,5.817,259.888,9.932,4.127
+LOT002,SPEC_LOT002,supplier_fallback,4.424,83.1,5.753,229.507,9.506,3.368
+LOT003,SPEC_LOT003,supplier_fallback,3.756,79.554,5.897,229.032,9.965,2.776
+LOT004,SPEC_LOT004,supplier_fallback,4.993,84.91,5.938,276.986,9.568,3.292
+LOT005,SPEC_LOT005,supplier_fallback,3.493,79.926,5.976,246.056,9.81,4.172
+LOT006,SPEC_LOT006,supplier_fallback,2.375,86.424,5.727,269.0,10.186,3.572
+LOT007,SPEC_LOT007,supplier_fallback,2.561,79.297,5.933,229.358,11.061,3.075
+LOT008,SPEC_LOT008,supplier_fallback,4.906,86.152,5.877,295.349,10.662,4.014
+LOT009,SPEC_LOT009,supplier_fallback,2.367,82.811,5.914,225.135,11.346,4.298
+LOT010,SPEC_LOT010,supplier_fallback,3.229,81.922,5.726,248.222,11.49,3.396
+LOT011,SPEC_LOT011,supplier_fallback,2.081,79.746,5.859,324.103,10.492,3.585
+LOT012,SPEC_LOT012,supplier_fallback,3.651,84.985,5.611,276.113,10.613,3.821

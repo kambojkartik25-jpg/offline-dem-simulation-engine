@@ -333,7 +333,7 @@ class ProductionPlanLoadRequest(BaseModel):
     optimize_iterations: int = 80
     optimize_seed: int = 42
     config: dict[str, Any] = Field(
-        default_factory=lambda: {"steps": int(_SETTINGS.get("api", {}).get("default_steps", 800))}
+        default_factory=lambda: {"steps": int(_SETTINGS.get("api", {}).get("default_steps"))}
     )
     include_all_candidates: bool = False
 
@@ -348,6 +348,7 @@ class ProductionPlanOptimizeRequest(BaseModel):
 
 class ProductionPlanApplyRequest(BaseModel):
     candidate_index: int = 0
+    reason: str = Field(min_length=1)
     config: dict[str, Any] = Field(default_factory=dict)
     expected_last_event_id: int | None = None
 
@@ -1340,8 +1341,8 @@ DEFAULT_PARAM_RANGES = {
 }
 DISCHARGE_FRACTION_MIN = 0.0
 DISCHARGE_FRACTION_MAX = 1.0
-FIXED_DISCHARGE_TARGET_KG = float(_SETTINGS.get("api", {}).get("fixed_discharge_target_kg", 9000.0))
-FIXED_DISCHARGE_TOL_KG = float(_SETTINGS.get("api", {}).get("fixed_discharge_tol_kg", 1e-3))
+FIXED_DISCHARGE_TARGET_KG = float(_SETTINGS.get("api", {}).get("fixed_discharge_target_kg"))
+FIXED_DISCHARGE_TOL_KG = float(_SETTINGS.get("api", {}).get("fixed_discharge_tol_kg"))
 MIN_TOTAL_DISCHARGE_SHARE = 0.05
 MAX_TOTAL_DISCHARGE_SHARE = 0.90
 MIN_CANDIDATE_POOL_DISTANCE = 0.15
@@ -1424,11 +1425,6 @@ def _brewmaster_score_candidates(
 
     import os
     url = str(_SETTINGS.get("brewmaster", {}).get("endpoint_url", "")).strip()
-    if not url:
-        url = os.getenv(
-            "BREWMASTER_ENDPOINT_URL",
-            "https://bq-brewmaster-endpoint.germanywestcentral.inference.ml.azure.com/score",
-        ).strip()
     key = os.getenv("BREWMASTER_API_KEY", "").strip()
     if not url or not key:
         print(
@@ -1470,8 +1466,8 @@ def _brewmaster_score_candidates(
             url,
             headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
             json={"input_data": {"columns": _BREWMASTER_FEATURE_COLUMNS, "data": rows}},
-            verify=bool(_SETTINGS.get("brewmaster", {}).get("verify_tls", False)),
-            timeout=float(_SETTINGS.get("brewmaster", {}).get("timeout_s", 10)),
+            verify=bool(_SETTINGS.get("brewmaster", {}).get("verify_tls")),
+            timeout=float(_SETTINGS.get("brewmaster", {}).get("timeout_s")),
         )
         resp.raise_for_status()
         body = resp.json()
@@ -2732,6 +2728,9 @@ def create_app() -> FastAPI:
         discharge_plan = _json_list(selected.get("recommended_discharge"))
         if not discharge_plan:
             raise HTTPException(status_code=422, detail="selected candidate has empty recommended_discharge")
+        reason = str(req.reason or "").strip()
+        if not reason:
+            raise HTTPException(status_code=422, detail="reason is required")
         _update_plan_run(
             plan_run_id,
             current_stage="applying",
@@ -2765,6 +2764,25 @@ def create_app() -> FastAPI:
             """,
             (idx, applied_event_id, str(head.get("schedule_id", "")), brew_id),
         )
+        try:
+            execute(
+                """
+                INSERT INTO tracked_applied_scenarios (
+                    schedule_id, brew_id, scenario_index, reason, plan_run_id, applied_event_id
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    str(head.get("schedule_id", "")),
+                    brew_id,
+                    idx,
+                    reason,
+                    plan_run_id,
+                    applied_event_id,
+                ),
+            )
+        except Exception:
+            pass
         items = _schedule_items(str(head.get("schedule_id", "")))
         next_brew = _pick_current_brew(items)
         if next_brew is None:

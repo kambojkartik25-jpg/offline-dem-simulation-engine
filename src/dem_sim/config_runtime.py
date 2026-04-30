@@ -32,16 +32,9 @@ def _read_json_if_exists(path: Path) -> dict[str, Any]:
 
 DEFAULT_SETTINGS: dict[str, Any] = {
     "profile": "local",
-    "api": {
-        "fixed_discharge_target_kg": 9000.0,
-        "fixed_discharge_tol_kg": 1e-3,
-        "default_steps": 800,
-    },
-    "brewmaster": {
-        "endpoint_url": "https://bq-brewmaster-endpoint.germanywestcentral.inference.ml.azure.com/score",
-        "timeout_s": 10,
-        "verify_tls": False,
-    },
+    # Keep bootstrap defaults minimal; canonical runtime defaults live in config/base.json.
+    "api": {},
+    "brewmaster": {},
 }
 
 
@@ -62,4 +55,3 @@ def load_runtime_settings() -> dict[str, Any]:
         settings.setdefault("brewmaster", {})
         settings["brewmaster"]["verify_tls"] = env_verify.strip().lower() in {"1", "true", "yes", "on"}
     return settings
-

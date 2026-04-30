@@ -1,0 +1,404 @@
+﻿{
+    "objective_score":  0.39043334538125496,
+    "recommended_discharge":  [
+                                  {
+                                      "silo_id":  "S1",
+                                      "discharge_mass_kg":  4608.333333,
+                                      "discharge_fraction":  0.512037
+                                  },
+                                  {
+                                      "silo_id":  "S2",
+                                      "discharge_mass_kg":  1758.333333,
+                                      "discharge_fraction":  0.19537
+                                  },
+                                  {
+                                      "silo_id":  "S3",
+                                      "discharge_mass_kg":  2633.333333,
+                                      "discharge_fraction":  0.292593
+                                  }
+                              ],
+    "best_run":  {
+                     "total_discharged_mass_kg":  8999.999999,
+                     "total_remaining_mass_kg":  291000.000001,
+                     "total_blended_params":  {
+                                                  "moisture_pct":  2.6525256214253456,
+                                                  "fine_extract_db_pct":  83.12143428514688,
+                                                  "wort_pH":  5.8764438254195515,
+                                                  "diastatic_power_WK":  247.01726109174788,
+                                                  "total_protein_pct":  10.321892182526508,
+                                                  "wort_colour_EBC":  4.185819987691363
+                                              },
+                     "silo_state_ledger":  [
+                                               {
+                                                   "silo_id":  "S1",
+                                                   "initial_mass_kg":  100000.0,
+                                                   "discharged_mass_kg":  4608.333333,
+                                                   "remaining_mass_kg":  95391.666667,
+                                                   "remaining_pct":  95.391666667
+                                               },
+                                               {
+                                                   "silo_id":  "S2",
+                                                   "initial_mass_kg":  100000.0,
+                                                   "discharged_mass_kg":  1758.333333,
+                                                   "remaining_mass_kg":  98241.666667,
+                                                   "remaining_pct":  98.241666667
+                                               },
+                                               {
+                                                   "silo_id":  "S3",
+                                                   "initial_mass_kg":  100000.0,
+                                                   "discharged_mass_kg":  2633.333333,
+                                                   "remaining_mass_kg":  97366.666667,
+                                                   "remaining_pct":  97.366666667
+                                               }
+                                           ],
+                     "per_silo":  {
+                                      "S1":  {
+                                                 "discharged_mass_kg":  4608.333333,
+                                                 "mass_flow_rate_kg_s":  18.46430578112723,
+                                                 "discharge_time_s":  249.58064427801438,
+                                                 "sigma_m":  0.9806581127812506,
+                                                 "blended_params_per_silo":  {
+                                                                                 "moisture_pct":  2.4950055162398717,
+                                                                                 "fine_extract_db_pct":  84.51799594503466,
+                                                                                 "wort_pH":  5.816999816983229,
+                                                                                 "diastatic_power_WK":  259.88791312136675,
+                                                                                 "total_protein_pct":  9.931998781794617,
+                                                                                 "wort_colour_EBC":  4.126997829535477
+                                                                             }
+                                             },
+                                      "S2":  {
+                                                 "discharged_mass_kg":  1758.333333,
+                                                 "mass_flow_rate_kg_s":  18.46430578112723,
+                                                 "discharge_time_s":  95.22878107863828,
+                                                 "sigma_m":  0.9806581127812506,
+                                                 "blended_params_per_silo":  {
+                                                                                 "moisture_pct":  3.4929705355890484,
+                                                                                 "fine_extract_db_pct":  79.9261712520057,
+                                                                                 "wort_pH":  5.9759934377116934,
+                                                                                 "diastatic_power_WK":  246.05660467928882,
+                                                                                 "total_protein_pct":  9.810009909318891,
+                                                                                 "wort_colour_EBC":  4.171984187257092
+                                                                             }
+                                             },
+                                      "S3":  {
+                                                 "discharged_mass_kg":  2633.333333,
+                                                 "mass_flow_rate_kg_s":  18.46430578112723,
+                                                 "discharge_time_s":  142.6175110082713,
+                                                 "sigma_m":  0.9806581127812506,
+                                                 "blended_params_per_silo":  {
+                                                                                 "moisture_pct":  2.3670026508396558,
+                                                                                 "fine_extract_db_pct":  82.8109972661294,
+                                                                                 "wort_pH":  5.913999421858636,
+                                                                                 "diastatic_power_WK":  225.13507099760457,
+                                                                                 "total_protein_pct":  11.34600044283168,
+                                                                                 "wort_colour_EBC":  4.297997226151543
+                                                                             }
+                                             }
+                                  }
+                 },
+    "target_params":  {
+                          "moisture_pct":  4.5,
+                          "fine_extract_db_pct":  81.0,
+                          "wort_pH":  5.8,
+                          "wort_colour_EBC":  3.5,
+                          "diastatic_power_WK":  250.0,
+                          "total_protein_pct":  10.8
+                      },
+    "feasibility_warnings":  [
+
+                             ],
+    "coa_warnings":  [
+                         "suppliers.csv COA warning: supplier \u0027SPEC_LOT003\u0027 â Wort Colour (EBC) value 2.776 is outside typical contract range [3.0â8.0] but within science bounds [2.5â12.0]. Verify COA document.",
+                         "suppliers.csv COA warning: supplier \u0027SPEC_LOT022\u0027 â Wort Colour (EBC) value 2.718 is outside typical contract range [3.0â8.0] but within science bounds [2.5â12.0]. Verify COA document.",
+                         "suppliers.csv COA warning: supplier \u0027SPEC_LOT024\u0027 â Wort Colour (EBC) value 2.94 is outside typical contract range [3.0â8.0] but within science bounds [2.5â12.0]. Verify COA document.",
+                         "suppliers.csv COA warning: supplier \u0027SPEC_LOT027\u0027 â Wort Colour (EBC) value 2.783 is outside typical contract range [3.0â8.0] but within science bounds [2.5â12.0]. Verify COA document."
+                     ],
+    "fixed_discharge_target_kg":  9000.0,
+    "iterations":  20,
+    "iterations_effective":  20,
+    "explore_iterations":  12,
+    "exploit_iterations":  8,
+    "objective_method":  "normalized_weighted_l2_hybrid_search",
+    "param_ranges":  {
+                         "moisture_pct":  5.0,
+                         "fine_extract_db_pct":  2.0,
+                         "wort_pH":  0.20000000000000018,
+                         "diastatic_power_WK":  60.0,
+                         "total_protein_pct":  1.0,
+                         "wort_colour_EBC":  0.40000000000000036
+                     },
+    "param_weights":  {
+                          "moisture_pct":  0.07,
+                          "fine_extract_db_pct":  0.25,
+                          "wort_pH":  0.2,
+                          "diastatic_power_WK":  0.3,
+                          "total_protein_pct":  0.15,
+                          "wort_colour_EBC":  0.03
+                      },
+    "target_objective_mode":  {
+                                  "moisture_pct":  "max",
+                                  "fine_extract_db_pct":  "min",
+                                  "diastatic_power_WK":  "min"
+                              },
+    "auto_fill_triggered":  false,
+    "pre_fill_available_kg":  300000.0,
+    "post_fill_available_kg":  300000.0,
+    "top_candidates":  [
+                           {
+                               "objective_score":  0.4146787621382019,
+                               "recommended_discharge":  [
+                                                             {
+                                                                 "silo_id":  "S1",
+                                                                 "discharge_mass_kg":  2408.725248,
+                                                                 "discharge_fraction":  0.267636
+                                                             },
+                                                             {
+                                                                 "silo_id":  "S2",
+                                                                 "discharge_mass_kg":  2653.774752,
+                                                                 "discharge_fraction":  0.294864
+                                                             },
+                                                             {
+                                                                 "silo_id":  "S3",
+                                                                 "discharge_mass_kg":  3937.5,
+                                                                 "discharge_fraction":  0.4375
+                                                             }
+                                                         ],
+                               "blended_params":  {
+                                                      "moisture_pct":  2.733263320465962,
+                                                      "fine_extract_db_pct":  82.41725010270876,
+                                                      "wort_pH":  5.90631716322219,
+                                                      "diastatic_power_WK":  240.60535822709463,
+                                                      "total_protein_pct":  10.514656656386174,
+                                                      "wort_colour_EBC":  4.215070961732119
+                                                  },
+                               "total_discharged_mass_kg":  9000.0,
+                               "scenario_type":  "optimized",
+                               "candidate_num":  1,
+                               "brewmaster_prob_selected":  0.3222771789434573,
+                               "brewmaster_prediction":  0,
+                               "brewmaster_top_pick":  true
+                           },
+                           {
+                               "scenario_type":  "standard_equal_split",
+                               "feasible":  true,
+                               "required_per_silo_kg":  3000.0,
+                               "objective_score":  0.41948575690207357,
+                               "recommended_discharge":  [
+                                                             {
+                                                                 "silo_id":  "S1",
+                                                                 "discharge_mass_kg":  3000.0,
+                                                                 "discharge_fraction":  0.333333
+                                                             },
+                                                             {
+                                                                 "silo_id":  "S2",
+                                                                 "discharge_mass_kg":  3000.0,
+                                                                 "discharge_fraction":  0.333333
+                                                             },
+                                                             {
+                                                                 "silo_id":  "S3",
+                                                                 "discharge_mass_kg":  3000.0,
+                                                                 "discharge_fraction":  0.333333
+                                                             }
+                                                         ],
+                               "blended_params":  {
+                                                      "moisture_pct":  2.7849828077957293,
+                                                      "fine_extract_db_pct":  82.4184414930736,
+                                                      "wort_pH":  5.902328865666673,
+                                                      "diastatic_power_WK":  243.6934084500632,
+                                                      "total_protein_pct":  10.362673077364486,
+                                                      "wort_colour_EBC":  4.198988473584101
+                                                  },
+                               "total_discharged_mass_kg":  9000.0,
+                               "candidate_num":  5,
+                               "brewmaster_prob_selected":  0.30922653229535474,
+                               "brewmaster_prediction":  0,
+                               "brewmaster_top_pick":  false
+                           },
+                           {
+                               "objective_score":  0.41807205201422337,
+                               "recommended_discharge":  [
+                                                             {
+                                                                 "silo_id":  "S1",
+                                                                 "discharge_mass_kg":  3297.235023,
+                                                                 "discharge_fraction":  0.366359
+                                                             },
+                                                             {
+                                                                 "silo_id":  "S2",
+                                                                 "discharge_mass_kg":  2928.110599,
+                                                                 "discharge_fraction":  0.325346
+                                                             },
+                                                             {
+                                                                 "silo_id":  "S3",
+                                                                 "discharge_mass_kg":  2774.654378,
+                                                                 "discharge_fraction":  0.308295
+                                                             }
+                                                         ],
+                               "blended_params":  {
+                                                      "moisture_pct":  2.780217126890123,
+                                                      "fine_extract_db_pct":  82.49785495654125,
+                                                      "wort_pH":  5.898630394955945,
+                                                      "diastatic_power_WK":  244.674021062485,
+                                                      "total_protein_pct":  10.32824280462596,
+                                                      "wort_colour_EBC":  4.1943482364906854
+                                                  },
+                               "total_discharged_mass_kg":  9000.0,
+                               "scenario_type":  "optimized",
+                               "candidate_num":  4,
+                               "brewmaster_prob_selected":  0.27804203284069096,
+                               "brewmaster_prediction":  0,
+                               "brewmaster_top_pick":  false
+                           },
+                           {
+                               "objective_score":  0.4084105822049811,
+                               "recommended_discharge":  [
+                                                             {
+                                                                 "silo_id":  "S1",
+                                                                 "discharge_mass_kg":  5559.241706,
+                                                                 "discharge_fraction":  0.617694
+                                                             },
+                                                             {
+                                                                 "silo_id":  "S2",
+                                                                 "discharge_mass_kg":  1824.64455,
+                                                                 "discharge_fraction":  0.202738
+                                                             },
+                                                             {
+                                                                 "silo_id":  "S3",
+                                                                 "discharge_mass_kg":  1616.113744,
+                                                                 "discharge_fraction":  0.179568
+                                                             }
+                                                         ],
+                               "blended_params":  {
+                                                      "moisture_pct":  2.6743491051373742,
+                                                      "fine_extract_db_pct":  83.28053342773106,
+                                                      "wort_pH":  5.866651839845866,
+                                                      "diastatic_power_WK":  250.8432147844602,
+                                                      "total_protein_pct":  10.1611759408893,
+                                                      "wort_colour_EBC":  4.166823067419502
+                                                  },
+                               "total_discharged_mass_kg":  9000.0,
+                               "scenario_type":  "optimized",
+                               "candidate_num":  3,
+                               "brewmaster_prob_selected":  0.27100104177026424,
+                               "brewmaster_prediction":  0,
+                               "brewmaster_top_pick":  false
+                           },
+                           {
+                               "objective_score":  0.39043334538125496,
+                               "recommended_discharge":  [
+                                                             {
+                                                                 "silo_id":  "S1",
+                                                                 "discharge_mass_kg":  4608.333333,
+                                                                 "discharge_fraction":  0.512037
+                                                             },
+                                                             {
+                                                                 "silo_id":  "S2",
+                                                                 "discharge_mass_kg":  1758.333333,
+                                                                 "discharge_fraction":  0.19537
+                                                             },
+                                                             {
+                                                                 "silo_id":  "S3",
+                                                                 "discharge_mass_kg":  2633.333333,
+                                                                 "discharge_fraction":  0.292593
+                                                             }
+                                                         ],
+                               "blended_params":  {
+                                                      "moisture_pct":  2.6525256214253456,
+                                                      "fine_extract_db_pct":  83.12143428514688,
+                                                      "wort_pH":  5.8764438254195515,
+                                                      "diastatic_power_WK":  247.01726109174788,
+                                                      "total_protein_pct":  10.321892182526508,
+                                                      "wort_colour_EBC":  4.185819987691363
+                                                  },
+                               "total_discharged_mass_kg":  8999.999999,
+                               "scenario_type":  "optimized",
+                               "candidate_num":  2,
+                               "brewmaster_prob_selected":  0.21996151159350272,
+                               "brewmaster_prediction":  0,
+                               "brewmaster_top_pick":  false
+                           }
+                       ],
+    "brewmaster_recommendation":  {
+                                      "candidate_num":  1,
+                                      "prob_selected":  0.3222771789434573,
+                                      "blended_params":  {
+                                                             "moisture_pct":  2.733263320465962,
+                                                             "fine_extract_db_pct":  82.41725010270876,
+                                                             "wort_pH":  5.90631716322219,
+                                                             "diastatic_power_WK":  240.60535822709463,
+                                                             "total_protein_pct":  10.514656656386174,
+                                                             "wort_colour_EBC":  4.215070961732119
+                                                         },
+                                      "recommended_discharge":  [
+                                                                    {
+                                                                        "silo_id":  "S1",
+                                                                        "discharge_mass_kg":  2408.725248,
+                                                                        "discharge_fraction":  0.267636
+                                                                    },
+                                                                    {
+                                                                        "silo_id":  "S2",
+                                                                        "discharge_mass_kg":  2653.774752,
+                                                                        "discharge_fraction":  0.294864
+                                                                    },
+                                                                    {
+                                                                        "silo_id":  "S3",
+                                                                        "discharge_mass_kg":  3937.5,
+                                                                        "discharge_fraction":  0.4375
+                                                                    }
+                                                                ],
+                                      "objective_score":  0.4146787621382019,
+                                      "total_discharged_mass_kg":  9000.0
+                                  },
+    "standard_scenario":  {
+                              "scenario_type":  "standard_equal_split",
+                              "feasible":  true,
+                              "required_per_silo_kg":  3000.0,
+                              "objective_score":  0.41948575690207357,
+                              "recommended_discharge":  [
+                                                            {
+                                                                "silo_id":  "S1",
+                                                                "discharge_mass_kg":  3000.0,
+                                                                "discharge_fraction":  0.333333
+                                                            },
+                                                            {
+                                                                "silo_id":  "S2",
+                                                                "discharge_mass_kg":  3000.0,
+                                                                "discharge_fraction":  0.333333
+                                                            },
+                                                            {
+                                                                "silo_id":  "S3",
+                                                                "discharge_mass_kg":  3000.0,
+                                                                "discharge_fraction":  0.333333
+                                                            }
+                                                        ],
+                              "blended_params":  {
+                                                     "moisture_pct":  2.7849828077957293,
+                                                     "fine_extract_db_pct":  82.4184414930736,
+                                                     "wort_pH":  5.902328865666673,
+                                                     "diastatic_power_WK":  243.6934084500632,
+                                                     "total_protein_pct":  10.362673077364486,
+                                                     "wort_colour_EBC":  4.198988473584101
+                                                 },
+                              "total_discharged_mass_kg":  9000.0,
+                              "candidate_num":  5,
+                              "brewmaster_prob_selected":  0.30922653229535474,
+                              "brewmaster_prediction":  0,
+                              "brewmaster_top_pick":  false
+                          },
+    "config_used":  {
+                        "rho_bulk_kg_m3":  610.0,
+                        "grain_diameter_m":  0.004,
+                        "beverloo_c":  0.58,
+                        "beverloo_k":  1.4,
+                        "gravity_m_s2":  9.81,
+                        "sigma_m":  0.12,
+                        "steps":  800,
+                        "auto_adjust":  true
+                    },
+    "elapsed_ms":  8703.99,
+    "timing_breakdown_ms":  {
+                                "validation_ms":  24.38,
+                                "search_ms":  6128.01,
+                                "postprocess_ms":  2771.27,
+                                "db_ms":  219.67
+                            }
+}
